@@ -1,8 +1,8 @@
 export const metrics = [
   { label: "Активные вакансии", value: "18", hint: "+3 за месяц" },
-  { label: "Кандидаты в воронке", value: "146", hint: "На всех этапах подбора" },
+  { label: "Кандидаты в работе", value: "146", hint: "На всех этапах подбора" },
   { label: "Принятые офферы", value: "8", hint: "Кандидаты приняли предложение" },
-  { label: "Вакансии в зоне риска", value: "4", hint: "Требуют внимания" }
+  { label: "Просроченные SLA", value: "4", hint: "Требуют внимания" }
 ];
 
 export const funnel = [
@@ -16,7 +16,7 @@ export const funnel = [
 
 export const hiringRisks = [
   {
-    vacancy: "Старший backend-разработчик",
+    vacancy: "Старший разработчик серверной части",
     owner: "Рекрутер A",
     risk: "Просрочен SLA",
     level: "high",
@@ -30,7 +30,7 @@ export const hiringRisks = [
     levelLabel: "Высокий"
   },
   {
-    vacancy: "HR-бизнес-партнер",
+    vacancy: "Бизнес-партнер по персоналу",
     owner: "Рекрутер C",
     risk: "Задержка со стороны нанимающего менеджера",
     level: "medium",
@@ -39,8 +39,40 @@ export const hiringRisks = [
 ];
 
 export const recruiterWorkload = [
-  { name: "Рекрутер A", vacancies: 6, candidates: 42, overdueSla: "2 вакансии" },
-  { name: "Рекрутер B", vacancies: 5, candidates: 38, overdueSla: "1 вакансия" },
-  { name: "Рекрутер C", vacancies: 4, candidates: 31, overdueSla: "1 вакансия" },
-  { name: "Рекрутер D", vacancies: 3, candidates: 35, overdueSla: "0 вакансий" }
+  {
+    name: "Рекрутер A",
+    vacancies: 6,
+    candidates: 42,
+    offers: 4,
+    hires: 2,
+    overdueSla: 2,
+    riskVacancies: 2
+  },
+  {
+    name: "Рекрутер B",
+    vacancies: 5,
+    candidates: 38,
+    offers: 3,
+    hires: 2,
+    overdueSla: 1,
+    riskVacancies: 1
+  },
+  {
+    name: "Рекрутер C",
+    vacancies: 4,
+    candidates: 31,
+    offers: 2,
+    hires: 1,
+    overdueSla: 1,
+    riskVacancies: 1
+  },
+  {
+    name: "Рекрутер D",
+    vacancies: 3,
+    candidates: 35,
+    offers: 6,
+    hires: 3,
+    overdueSla: 0,
+    riskVacancies: 0
+  }
 ];
