@@ -1,78 +1,172 @@
-export const metrics = [
-  { label: "Активные вакансии", value: "18", hint: "+3 за месяц" },
-  { label: "Кандидаты в работе", value: "146", hint: "На всех этапах подбора" },
-  { label: "Принятые офферы", value: "8", hint: "Кандидаты приняли предложение" },
-  { label: "Просроченные SLA", value: "4", hint: "Требуют внимания" }
+export const departments = ["Продукт", "Технологии", "Операции"];
+
+export const teams = [
+  { name: "Платформа", department: "Технологии" },
+  { name: "Разработка продукта", department: "Технологии" },
+  { name: "Аналитика", department: "Продукт" },
+  { name: "HR", department: "Операции" }
 ];
 
-export const funnel = [
-  { stage: "Отклики", count: 146 },
-  { stage: "Скрининг", count: 92 },
-  { stage: "Интервью", count: 48 },
-  { stage: "Финал", count: 24 },
-  { stage: "Оффер", count: 15 },
-  { stage: "Выход", count: 8 }
-];
+export const recruiters = ["Рекрутер A", "Рекрутер B", "Рекрутер C", "Рекрутер D"];
 
-export const hiringRisks = [
+export const dataSources = {
+  vacancies: "Яндекс Таблицы",
+  candidates: "Huntflow",
+  offers: "Huntflow"
+};
+
+export const vacancies = [
   {
-    vacancy: "Старший разработчик серверной части",
-    owner: "Рекрутер A",
-    risk: "Просрочен SLA",
-    level: "high",
-    levelLabel: "Высокий"
+    id: 1,
+    title: "Старший разработчик серверной части",
+    department: "Технологии",
+    team: "Платформа",
+    recruiter: "Рекрутер A",
+    status: "active",
+    daysToClose: 0,
+    slaDays: 45,
+    isRisk: true,
+    riskReason: "Просрочен SLA",
+    riskLevel: "high",
+    riskLevelLabel: "Высокий"
   },
   {
-    vacancy: "Продуктовый аналитик",
-    owner: "Рекрутер B",
-    risk: "Низкий поток кандидатов",
-    level: "high",
-    levelLabel: "Высокий"
+    id: 2,
+    title: "Frontend-разработчик",
+    department: "Технологии",
+    team: "Разработка продукта",
+    recruiter: "Рекрутер A",
+    status: "closed",
+    daysToClose: 38,
+    slaDays: 45,
+    isRisk: false,
+    riskReason: "",
+    riskLevel: "low",
+    riskLevelLabel: "Низкий"
   },
   {
-    vacancy: "Бизнес-партнер по персоналу",
-    owner: "Рекрутер C",
-    risk: "Задержка со стороны нанимающего менеджера",
-    level: "medium",
-    levelLabel: "Средний"
+    id: 3,
+    title: "Продуктовый аналитик",
+    department: "Продукт",
+    team: "Аналитика",
+    recruiter: "Рекрутер B",
+    status: "active",
+    daysToClose: 0,
+    slaDays: 35,
+    isRisk: true,
+    riskReason: "Низкий поток кандидатов",
+    riskLevel: "high",
+    riskLevelLabel: "Высокий"
+  },
+  {
+    id: 4,
+    title: "Менеджер продукта",
+    department: "Продукт",
+    team: "Аналитика",
+    recruiter: "Рекрутер B",
+    status: "closed",
+    daysToClose: 41,
+    slaDays: 40,
+    isRisk: false,
+    riskReason: "",
+    riskLevel: "low",
+    riskLevelLabel: "Низкий"
+  },
+  {
+    id: 5,
+    title: "Бизнес-партнер по персоналу",
+    department: "Операции",
+    team: "HR",
+    recruiter: "Рекрутер C",
+    status: "active",
+    daysToClose: 0,
+    slaDays: 30,
+    isRisk: true,
+    riskReason: "Задержка со стороны нанимающего менеджера",
+    riskLevel: "medium",
+    riskLevelLabel: "Средний"
+  },
+  {
+    id: 6,
+    title: "Специалист по адаптации",
+    department: "Операции",
+    team: "HR",
+    recruiter: "Рекрутер C",
+    status: "closed",
+    daysToClose: 24,
+    slaDays: 30,
+    isRisk: false,
+    riskReason: "",
+    riskLevel: "low",
+    riskLevelLabel: "Низкий"
+  },
+  {
+    id: 7,
+    title: "Инженер по качеству",
+    department: "Технологии",
+    team: "Платформа",
+    recruiter: "Рекрутер D",
+    status: "active",
+    daysToClose: 0,
+    slaDays: 40,
+    isRisk: false,
+    riskReason: "",
+    riskLevel: "low",
+    riskLevelLabel: "Низкий"
+  },
+  {
+    id: 8,
+    title: "Системный аналитик",
+    department: "Технологии",
+    team: "Разработка продукта",
+    recruiter: "Рекрутер D",
+    status: "closed",
+    daysToClose: 36,
+    slaDays: 40,
+    isRisk: false,
+    riskReason: "",
+    riskLevel: "low",
+    riskLevelLabel: "Низкий"
   }
 ];
 
-export const recruiterWorkload = [
-  {
-    name: "Рекрутер A",
-    vacancies: 6,
-    candidates: 42,
-    offers: 4,
-    hires: 2,
-    overdueSla: 2,
-    riskVacancies: 2
-  },
-  {
-    name: "Рекрутер B",
-    vacancies: 5,
-    candidates: 38,
-    offers: 3,
-    hires: 2,
-    overdueSla: 1,
-    riskVacancies: 1
-  },
-  {
-    name: "Рекрутер C",
-    vacancies: 4,
-    candidates: 31,
-    offers: 2,
-    hires: 1,
-    overdueSla: 1,
-    riskVacancies: 1
-  },
-  {
-    name: "Рекрутер D",
-    vacancies: 3,
-    candidates: 35,
-    offers: 6,
-    hires: 3,
-    overdueSla: 0,
-    riskVacancies: 0
-  }
+export const candidates = [
+  { id: 1, vacancyId: 1, stage: "Отклики", source: "HeadHunter" },
+  { id: 2, vacancyId: 1, stage: "Скрининг", source: "HeadHunter" },
+  { id: 3, vacancyId: 1, stage: "Интервью", source: "Рекомендации" },
+  { id: 4, vacancyId: 1, stage: "Финал", source: "HeadHunter" },
+  { id: 5, vacancyId: 1, stage: "Оффер", source: "Рекомендации" },
+  { id: 6, vacancyId: 2, stage: "Выход", source: "HeadHunter" },
+  { id: 7, vacancyId: 2, stage: "Оффер", source: "HeadHunter" },
+  { id: 8, vacancyId: 2, stage: "Финал", source: "Рекомендации" },
+  { id: 9, vacancyId: 3, stage: "Отклики", source: "HeadHunter" },
+  { id: 10, vacancyId: 3, stage: "Отклики", source: "HeadHunter" },
+  { id: 11, vacancyId: 3, stage: "Скрининг", source: "Рекомендации" },
+  { id: 12, vacancyId: 3, stage: "Интервью", source: "HeadHunter" },
+  { id: 13, vacancyId: 4, stage: "Выход", source: "Яндекс Таблицы" },
+  { id: 14, vacancyId: 4, stage: "Оффер", source: "HeadHunter" },
+  { id: 15, vacancyId: 4, stage: "Финал", source: "Рекомендации" },
+  { id: 16, vacancyId: 5, stage: "Отклики", source: "HeadHunter" },
+  { id: 17, vacancyId: 5, stage: "Скрининг", source: "HeadHunter" },
+  { id: 18, vacancyId: 5, stage: "Интервью", source: "Рекомендации" },
+  { id: 19, vacancyId: 6, stage: "Выход", source: "HeadHunter" },
+  { id: 20, vacancyId: 6, stage: "Оффер", source: "Рекомендации" },
+  { id: 21, vacancyId: 7, stage: "Отклики", source: "HeadHunter" },
+  { id: 22, vacancyId: 7, stage: "Скрининг", source: "HeadHunter" },
+  { id: 23, vacancyId: 7, stage: "Интервью", source: "Рекомендации" },
+  { id: 24, vacancyId: 8, stage: "Выход", source: "HeadHunter" },
+  { id: 25, vacancyId: 8, stage: "Оффер", source: "HeadHunter" }
 ];
+
+export const offers = [
+  { id: 1, vacancyId: 1, status: "accepted", rejectReason: "", source: "Huntflow" },
+  { id: 2, vacancyId: 2, status: "accepted", rejectReason: "", source: "Huntflow" },
+  { id: 3, vacancyId: 2, status: "declined", rejectReason: "Компенсация", source: "Huntflow" },
+  { id: 4, vacancyId: 4, status: "accepted", rejectReason: "", source: "Huntflow" },
+  { id: 5, vacancyId: 4, status: "declined", rejectReason: "Другое предложение", source: "Huntflow" },
+  { id: 6, vacancyId: 6, status: "accepted", rejectReason: "", source: "Huntflow" },
+  { id: 7, vacancyId: 8, status: "accepted", rejectReason: "", source: "Huntflow" },
+  { id: 8, vacancyId: 8, status: "declined", rejectReason: "Сроки выхода", source: "Huntflow" }
+];
+
+export const funnelStages = ["Отклики", "Скрининг", "Интервью", "Финал", "Оффер", "Выход"];
