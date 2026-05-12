@@ -27,6 +27,12 @@ export default function App() {
   const [selectedTeam, setSelectedTeam] = useState("Все отделы");
   const [selectedRecruiter, setSelectedRecruiter] = useState("Все рекрутеры");
 
+  const resetFilters = () => {
+    setSelectedDepartment("Все департаменты");
+    setSelectedTeam("Все отделы");
+    setSelectedRecruiter("Все рекрутеры");
+  };
+
   const availableTeams = useMemo(() => {
     if (selectedDepartment === "Все департаменты") {
       return teams;
@@ -182,8 +188,13 @@ export default function App() {
 
       <section className="filters-card card" aria-label="Фильтры дашборда">
         <div className="filters-heading">
-          <h2>Фильтры</h2>
-          <span>Срез данных для всех блоков</span>
+          <div>
+            <h2>Фильтры</h2>
+            <span>Срез данных для всех блоков</span>
+          </div>
+          <button className="reset-button" type="button" onClick={resetFilters}>
+            Сбросить фильтры
+          </button>
         </div>
 
         <div className="filters-grid">
