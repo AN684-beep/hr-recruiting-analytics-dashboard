@@ -15,6 +15,13 @@ const percent = (value: number, total: number) =>
 const average = (values: number[]) =>
   values.length === 0 ? 0 : Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 
+const groupByCount = <T,>(items: T[], getKey: (item: T) => string) =>
+  items.reduce<Record<string, number>>((result, item) => {
+    const key = getKey(item) || "Не указано";
+    result[key] = (result[key] || 0) + 1;
+    return result;
+  }, {});
+
 export default function App() {
   const [selectedDepartment, setSelectedDepartment] = useState("Все департаменты");
   const [selectedTeam, setSelectedTeam] = useState("Все отделы");
@@ -107,6 +114,28 @@ export default function App() {
 
   const maxFunnelCount = Math.max(...funnel.map((item) => item.count), 1);
 
+  const sourceDistribution = Object.entries(
+    groupByCount(filteredCandidates, (candidate) => candidate.source)
+  )
+    .map(([source, count]) => ({
+      source,
+      count,
+      share: percent(count, filteredCandidates.length)
+    }))
+    .sort((first, second) => second.count - first.count);
+
+  const referralCandidates =
+    sourceDistribution.find((item) => item.source === "Рекомендации")?.count || 0;
+
+  const declinedOffers = filteredOffers.filter((offer) => offer.status === "declined");
+  const declineReasons = Object.entries(groupByCount(declinedOffers, (offer) => offer.rejectReason))
+    .map(([reason, count]) => ({
+      reason,
+      count,
+      share: percent(count, declinedOffers.length)
+    }))
+    .sort((first, second) => second.count - first.count);
+
   const recruiterWorkload = recruiters
     .map((recruiter) => {
       const recruiterVacancies = filteredVacancies.filter((vacancy) => vacancy.recruiter === recruiter);
@@ -152,44 +181,51 @@ export default function App() {
       </header>
 
       <section className="filters-card card" aria-label="Фильтры дашборда">
-        <label>
-          <span>Департамент</span>
-          <select
-            value={selectedDepartment}
-            onChange={(event) => {
-              setSelectedDepartment(event.target.value);
-              setSelectedTeam("Все отделы");
-            }}
-          >
-            <option>Все департаменты</option>
-            {departments.map((department) => (
-              <option key={department}>{department}</option>
-            ))}
-          </select>
-        </label>
+        <div className="filters-heading">
+          <h2>Фильтры</h2>
+          <span>Срез данных для всех блоков</span>
+        </div>
 
-        <label>
-          <span>Отдел</span>
-          <select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>
-            <option>Все отделы</option>
-            {availableTeams.map((team) => (
-              <option key={team.name}>{team.name}</option>
-            ))}
-          </select>
-        </label>
+        <div className="filters-grid">
+          <label>
+            <span>Департамент</span>
+            <select
+              value={selectedDepartment}
+              onChange={(event) => {
+                setSelectedDepartment(event.target.value);
+                setSelectedTeam("Все отделы");
+              }}
+            >
+              <option>Все департаменты</option>
+              {departments.map((department) => (
+                <option key={department}>{department}</option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          <span>Рекрутер</span>
-          <select
-            value={selectedRecruiter}
-            onChange={(event) => setSelectedRecruiter(event.target.value)}
-          >
-            <option>Все рекрутеры</option>
-            {recruiters.map((recruiter) => (
-              <option key={recruiter}>{recruiter}</option>
-            ))}
-          </select>
-        </label>
+          <label>
+            <span>Отдел</span>
+            <select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>
+              <option>Все отделы</option>
+              {availableTeams.map((team) => (
+                <option key={team.name}>{team.name}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Рекрутер</span>
+            <select
+              value={selectedRecruiter}
+              onChange={(event) => setSelectedRecruiter(event.target.value)}
+            >
+              <option>Все рекрутеры</option>
+              {recruiters.map((recruiter) => (
+                <option key={recruiter}>{recruiter}</option>
+              ))}
+            </select>
+          </label>
+        </div>
       </section>
 
       <section className="metrics-grid" aria-label="Ключевые метрики">
@@ -259,6 +295,88 @@ export default function App() {
                       {risk.riskReason}
                     </p>
                   </div>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className="analytics-grid">
+        <article className="card analytics-card">
+          <div className="section-heading">
+            <h2>Источники подбора</h2>
+            <span>По выбранным фильтрам</span>
+          </div>
+
+          <div className="summary-row">
+            <div>
+              <span>Всего кандидатов</span>
+              <strong>{filteredCandidates.length}</strong>
+            </div>
+            <div>
+              <span>По рекомендациям</span>
+              <strong>{referralCandidates}</strong>
+            </div>
+          </div>
+
+          <div className="breakdown-list">
+            {sourceDistribution.length === 0 ? (
+              <p className="empty-state">Кандидатов по выбранным фильтрам нет.</p>
+            ) : (
+              sourceDistribution.map((item) => (
+                <div className="breakdown-item" key={item.source}>
+                  <div className="breakdown-label">
+                    <span>{item.source}</span>
+                    <strong>
+                      {item.count} · {item.share}
+                    </strong>
+                  </div>
+                  <div className="funnel-track">
+                    <div
+                      className="funnel-bar"
+                      style={{
+                        width: `${(item.count / Math.max(filteredCandidates.length, 1)) * 100}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+
+        <article className="card analytics-card">
+          <div className="section-heading">
+            <h2>Офферы</h2>
+            <span>Статусы и причины отказов</span>
+          </div>
+
+          <div className="summary-row">
+            <div>
+              <span>Всего офферов</span>
+              <strong>{filteredOffers.length}</strong>
+            </div>
+            <div>
+              <span>Принятые офферы</span>
+              <strong>{acceptedOffers.length}</strong>
+            </div>
+            <div>
+              <span>Конверсия</span>
+              <strong>{percent(acceptedOffers.length, filteredOffers.length)}</strong>
+            </div>
+          </div>
+
+          <div className="breakdown-list">
+            {declineReasons.length === 0 ? (
+              <p className="empty-state">Отказов по выбранным фильтрам нет.</p>
+            ) : (
+              declineReasons.map((item) => (
+                <div className="reason-item" key={item.reason}>
+                  <span>{item.reason}</span>
+                  <strong>
+                    {item.count} · {item.share}
+                  </strong>
                 </div>
               ))
             )}
