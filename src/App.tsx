@@ -60,15 +60,24 @@ export default function App() {
           <div className="risk-list">
             {hiringRisks.map((risk) => (
               <div className="risk-item" key={risk.vacancy}>
-                <div>
-                  <span>Вакансия</span>
-                  <strong>{risk.vacancy}</strong>
-                  <p>Рекрутер: {risk.owner}</p>
-                  <p>Причина риска: {risk.risk}</p>
+                <div className="risk-header">
+                  <div>
+                    <span className="risk-label">Вакансия</span>
+                    <strong className="risk-title">{risk.vacancy}</strong>
+                  </div>
+                  <b className={`risk-level ${risk.level}`}>{risk.levelLabel}</b>
                 </div>
-                <b className={`risk-level ${risk.level}`}>
-                  Уровень риска: {risk.levelLabel}
-                </b>
+
+                <div className="risk-details">
+                  <p>
+                    <span>Рекрутер</span>
+                    {risk.owner}
+                  </p>
+                  <p>
+                    <span>Причина риска</span>
+                    {risk.risk}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
