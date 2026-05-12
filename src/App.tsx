@@ -9,8 +9,10 @@ export default function App() {
       <header className="page-header">
         <div>
           <p className="eyebrow">Внутренняя HR-аналитика</p>
-          <h1>HR Recruiting Analytics Dashboard</h1>
-          <p className="description">MVP на моковых данных.</p>
+          <h1>Аналитика рекрутмента</h1>
+          <p className="description">
+            Контроль нагрузки, SLA, рисков и результатов команды рекрутинга
+          </p>
         </div>
       </header>
 
@@ -59,11 +61,14 @@ export default function App() {
             {hiringRisks.map((risk) => (
               <div className="risk-item" key={risk.vacancy}>
                 <div>
+                  <span>Вакансия</span>
                   <strong>{risk.vacancy}</strong>
-                  <p>{risk.risk}</p>
-                  <span>{risk.owner}</span>
+                  <p>Рекрутер: {risk.owner}</p>
+                  <p>Причина риска: {risk.risk}</p>
                 </div>
-                <b className={`risk-level ${risk.level}`}>{risk.levelLabel}</b>
+                <b className={`risk-level ${risk.level}`}>
+                  Уровень риска: {risk.levelLabel}
+                </b>
               </div>
             ))}
           </div>
@@ -82,8 +87,11 @@ export default function App() {
               <tr>
                 <th>Рекрутер</th>
                 <th>Активные вакансии</th>
-                <th>Кандидаты</th>
-                <th>Просроченный SLA</th>
+                <th>Кандидаты в работе</th>
+                <th>Офферы</th>
+                <th>Закрытия</th>
+                <th>Просроченные SLA</th>
+                <th>Вакансии в риске</th>
               </tr>
             </thead>
             <tbody>
@@ -92,7 +100,10 @@ export default function App() {
                   <td>{recruiter.name}</td>
                   <td>{recruiter.vacancies}</td>
                   <td>{recruiter.candidates}</td>
+                  <td>{recruiter.offers}</td>
+                  <td>{recruiter.hires}</td>
                   <td>{recruiter.overdueSla}</td>
+                  <td>{recruiter.riskVacancies}</td>
                 </tr>
               ))}
             </tbody>
