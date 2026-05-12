@@ -8,13 +8,13 @@ export default function App() {
     <main className="dashboard">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Internal HR analytics</p>
+          <p className="eyebrow">Внутренняя HR-аналитика</p>
           <h1>HR Recruiting Analytics Dashboard</h1>
-          <p className="description">MVP on mock data.</p>
+          <p className="description">MVP на моковых данных.</p>
         </div>
       </header>
 
-      <section className="metrics-grid" aria-label="Key metrics">
+      <section className="metrics-grid" aria-label="Ключевые метрики">
         {metrics.map((metric) => (
           <article className="card metric-card" key={metric.label}>
             <p>{metric.label}</p>
@@ -27,8 +27,8 @@ export default function App() {
       <section className="content-grid">
         <article className="card funnel-card">
           <div className="section-heading">
-            <h2>Recruiting funnel</h2>
-            <span>Current month</span>
+            <h2>Воронка подбора</h2>
+            <span>Текущий месяц</span>
           </div>
 
           <div className="funnel-list">
@@ -51,8 +51,8 @@ export default function App() {
 
         <article className="card risks-card">
           <div className="section-heading">
-            <h2>Hiring risks</h2>
-            <span>Top 3</span>
+            <h2>Риски подбора</h2>
+            <span>Топ-3 риска</span>
           </div>
 
           <div className="risk-list">
@@ -63,7 +63,7 @@ export default function App() {
                   <p>{risk.risk}</p>
                   <span>{risk.owner}</span>
                 </div>
-                <b className={`risk-level ${risk.level.toLowerCase()}`}>{risk.level}</b>
+                <b className={`risk-level ${risk.level}`}>{risk.levelLabel}</b>
               </div>
             ))}
           </div>
@@ -72,18 +72,18 @@ export default function App() {
 
       <section className="card table-card">
         <div className="section-heading">
-          <h2>Recruiter workload</h2>
-          <span>Mock team data</span>
+          <h2>Нагрузка рекрутеров</h2>
+          <span>Моковые данные команды</span>
         </div>
 
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Recruiter</th>
-                <th>Vacancies</th>
-                <th>Candidates</th>
-                <th>Average SLA</th>
+                <th>Рекрутер</th>
+                <th>Активные вакансии</th>
+                <th>Кандидаты</th>
+                <th>Просроченный SLA</th>
               </tr>
             </thead>
             <tbody>
@@ -92,7 +92,7 @@ export default function App() {
                   <td>{recruiter.name}</td>
                   <td>{recruiter.vacancies}</td>
                   <td>{recruiter.candidates}</td>
-                  <td>{recruiter.sla}</td>
+                  <td>{recruiter.overdueSla}</td>
                 </tr>
               ))}
             </tbody>
