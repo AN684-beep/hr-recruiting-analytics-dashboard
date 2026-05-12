@@ -1,9 +1,144 @@
-import React from "react";
-import { funnel, hiringRisks, metrics, recruiterWorkload } from "./mockData";
+import React, { useMemo, useState } from "react";
+import {
+  candidates,
+  departments,
+  funnelStages,
+  offers,
+  recruiters,
+  teams,
+  vacancies
+} from "./mockData";
 
-const maxFunnelCount = Math.max(...funnel.map((item) => item.count));
+const percent = (value: number, total: number) =>
+  total === 0 ? "0%" : `${Math.round((value / total) * 100)}%`;
+
+const average = (values: number[]) =>
+  values.length === 0 ? 0 : Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 
 export default function App() {
+  const [selectedDepartment, setSelectedDepartment] = useState("Все департаменты");
+  const [selectedTeam, setSelectedTeam] = useState("Все отделы");
+  const [selectedRecruiter, setSelectedRecruiter] = useState("Все рекрутеры");
+
+  const availableTeams = useMemo(() => {
+    if (selectedDepartment === "Все департаменты") {
+      return teams;
+    }
+
+    return teams.filter((team) => team.department === selectedDepartment);
+  }, [selectedDepartment]);
+
+  const filteredVacancies = useMemo(
+    () =>
+      vacancies.filter((vacancy) => {
+        const departmentMatch =
+          selectedDepartment === "Все департаменты" || vacancy.department === selectedDepartment;
+        const teamMatch = selectedTeam === "Все отделы" || vacancy.team === selectedTeam;
+        const recruiterMatch =
+          selectedRecruiter === "Все рекрутеры" || vacancy.recruiter === selectedRecruiter;
+
+        return departmentMatch && teamMatch && recruiterMatch;
+      }),
+    [selectedDepartment, selectedTeam, selectedRecruiter]
+  );
+
+  const filteredVacancyIds = filteredVacancies.map((vacancy) => vacancy.id);
+  const filteredCandidates = candidates.filter((candidate) =>
+    filteredVacancyIds.includes(candidate.vacancyId)
+  );
+  const filteredOffers = offers.filter((offer) => filteredVacancyIds.includes(offer.vacancyId));
+
+  const activeVacancies = filteredVacancies.filter((vacancy) => vacancy.status === "active");
+  const closedVacancies = filteredVacancies.filter((vacancy) => vacancy.status === "closed");
+  const closedOnTime = closedVacancies.filter((vacancy) => vacancy.daysToClose <= vacancy.slaDays);
+  const acceptedOffers = filteredOffers.filter((offer) => offer.status === "accepted");
+  const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
+
+  const metrics = [
+    {
+      label: "Вакансии в работе",
+      value: activeVacancies.length,
+      hint: "Открытые позиции"
+    },
+    {
+      label: "Закрытые вакансии",
+      value: closedVacancies.length,
+      hint: "Завершенные поиски"
+    },
+    {
+      label: "% закрытых в срок",
+      value: percent(closedOnTime.length, closedVacancies.length),
+      hint: "По SLA вакансий"
+    },
+    {
+      label: "Принятые офферы",
+      value: acceptedOffers.length,
+      hint: "Офферы со статусом принят"
+    },
+    {
+      label: "Конверсия офферов",
+      value: percent(acceptedOffers.length, filteredOffers.length),
+      hint: "Принятые от всех офферов"
+    },
+    {
+      label: "Средний срок закрытия",
+      value: `${average(closedVacancies.map((vacancy) => vacancy.daysToClose))} дн.`,
+      hint: "По закрытым вакансиям"
+    }
+  ];
+
+  const funnel = funnelStages.map((stage, index) => {
+    const count = filteredCandidates.filter(
+      (candidate) => funnelStages.indexOf(candidate.stage) >= index
+    ).length;
+    const previousStage = funnelStages[index - 1];
+    const previousCount = previousStage
+      ? filteredCandidates.filter(
+          (candidate) => funnelStages.indexOf(candidate.stage) >= index - 1
+        ).length
+      : count;
+
+    return {
+      stage,
+      count,
+      conversion: index === 0 ? "100%" : percent(count, previousCount)
+    };
+  });
+
+  const maxFunnelCount = Math.max(...funnel.map((item) => item.count), 1);
+
+  const recruiterWorkload = recruiters
+    .map((recruiter) => {
+      const recruiterVacancies = filteredVacancies.filter((vacancy) => vacancy.recruiter === recruiter);
+      const recruiterClosed = recruiterVacancies.filter((vacancy) => vacancy.status === "closed");
+      const recruiterOffers = filteredOffers.filter((offer) => {
+        const vacancy = filteredVacancies.find((item) => item.id === offer.vacancyId);
+        return vacancy?.recruiter === recruiter;
+      });
+      const recruiterAcceptedOffers = recruiterOffers.filter((offer) => offer.status === "accepted");
+
+      return {
+        name: recruiter,
+        activeVacancies: recruiterVacancies.filter((vacancy) => vacancy.status === "active").length,
+        closedVacancies: recruiterClosed.length,
+        closedOnTime: percent(
+          recruiterClosed.filter((vacancy) => vacancy.daysToClose <= vacancy.slaDays).length,
+          recruiterClosed.length
+        ),
+        averageCloseDays: `${average(recruiterClosed.map((vacancy) => vacancy.daysToClose))} дн.`,
+        offers: recruiterOffers.length,
+        acceptedOffers: recruiterAcceptedOffers.length,
+        offerConversion: percent(recruiterAcceptedOffers.length, recruiterOffers.length)
+      };
+    })
+    .filter(
+      (recruiter) =>
+        selectedRecruiter === "Все рекрутеры" ||
+        recruiter.name === selectedRecruiter ||
+        recruiter.activeVacancies > 0 ||
+        recruiter.closedVacancies > 0
+    );
+
   return (
     <main className="dashboard">
       <header className="page-header">
@@ -15,6 +150,47 @@ export default function App() {
           </p>
         </div>
       </header>
+
+      <section className="filters-card card" aria-label="Фильтры дашборда">
+        <label>
+          <span>Департамент</span>
+          <select
+            value={selectedDepartment}
+            onChange={(event) => {
+              setSelectedDepartment(event.target.value);
+              setSelectedTeam("Все отделы");
+            }}
+          >
+            <option>Все департаменты</option>
+            {departments.map((department) => (
+              <option key={department}>{department}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <span>Отдел</span>
+          <select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>
+            <option>Все отделы</option>
+            {availableTeams.map((team) => (
+              <option key={team.name}>{team.name}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          <span>Рекрутер</span>
+          <select
+            value={selectedRecruiter}
+            onChange={(event) => setSelectedRecruiter(event.target.value)}
+          >
+            <option>Все рекрутеры</option>
+            {recruiters.map((recruiter) => (
+              <option key={recruiter}>{recruiter}</option>
+            ))}
+          </select>
+        </label>
+      </section>
 
       <section className="metrics-grid" aria-label="Ключевые метрики">
         {metrics.map((metric) => (
@@ -30,7 +206,7 @@ export default function App() {
         <article className="card funnel-card">
           <div className="section-heading">
             <h2>Воронка подбора</h2>
-            <span>Текущий месяц</span>
+            <span>С учетом фильтров</span>
           </div>
 
           <div className="funnel-list">
@@ -38,7 +214,9 @@ export default function App() {
               <div className="funnel-row" key={item.stage}>
                 <div className="funnel-label">
                   <span>{item.stage}</span>
-                  <strong>{item.count}</strong>
+                  <strong>
+                    {item.count} кандидатов · {item.conversion}
+                  </strong>
                 </div>
                 <div className="funnel-track">
                   <div
@@ -54,32 +232,36 @@ export default function App() {
         <article className="card risks-card">
           <div className="section-heading">
             <h2>Риски подбора</h2>
-            <span>Топ-3 риска</span>
+            <span>По выбранным фильтрам</span>
           </div>
 
           <div className="risk-list">
-            {hiringRisks.map((risk) => (
-              <div className="risk-item" key={risk.vacancy}>
-                <div className="risk-header">
-                  <div>
-                    <span className="risk-label">Вакансия</span>
-                    <strong className="risk-title">{risk.vacancy}</strong>
+            {riskyVacancies.length === 0 ? (
+              <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
+            ) : (
+              riskyVacancies.map((risk) => (
+                <div className="risk-item" key={risk.id}>
+                  <div className="risk-header">
+                    <div>
+                      <span className="risk-label">Вакансия</span>
+                      <strong className="risk-title">{risk.title}</strong>
+                    </div>
+                    <b className={`risk-level ${risk.riskLevel}`}>{risk.riskLevelLabel}</b>
                   </div>
-                  <b className={`risk-level ${risk.level}`}>{risk.levelLabel}</b>
-                </div>
 
-                <div className="risk-details">
-                  <p>
-                    <span>Рекрутер</span>
-                    {risk.owner}
-                  </p>
-                  <p>
-                    <span>Причина риска</span>
-                    {risk.risk}
-                  </p>
+                  <div className="risk-details">
+                    <p>
+                      <span>Рекрутер</span>
+                      {risk.recruiter}
+                    </p>
+                    <p>
+                      <span>Причина риска</span>
+                      {risk.riskReason}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </article>
       </section>
@@ -95,24 +277,26 @@ export default function App() {
             <thead>
               <tr>
                 <th>Рекрутер</th>
-                <th>Активные вакансии</th>
-                <th>Кандидаты в работе</th>
+                <th>Вакансии в работе</th>
+                <th>Закрытые вакансии</th>
+                <th>% закрытых в срок</th>
+                <th>Средний срок закрытия</th>
                 <th>Офферы</th>
-                <th>Закрытия</th>
-                <th>Просроченные SLA</th>
-                <th>Вакансии в риске</th>
+                <th>Принятые офферы</th>
+                <th>Конверсия офферов</th>
               </tr>
             </thead>
             <tbody>
               {recruiterWorkload.map((recruiter) => (
                 <tr key={recruiter.name}>
                   <td>{recruiter.name}</td>
-                  <td>{recruiter.vacancies}</td>
-                  <td>{recruiter.candidates}</td>
+                  <td>{recruiter.activeVacancies}</td>
+                  <td>{recruiter.closedVacancies}</td>
+                  <td>{recruiter.closedOnTime}</td>
+                  <td>{recruiter.averageCloseDays}</td>
                   <td>{recruiter.offers}</td>
-                  <td>{recruiter.hires}</td>
-                  <td>{recruiter.overdueSla}</td>
-                  <td>{recruiter.riskVacancies}</td>
+                  <td>{recruiter.acceptedOffers}</td>
+                  <td>{recruiter.offerConversion}</td>
                 </tr>
               ))}
             </tbody>
