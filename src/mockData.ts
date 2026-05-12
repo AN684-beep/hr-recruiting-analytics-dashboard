@@ -143,7 +143,7 @@ export const candidates = [
   { id: 10, vacancyId: 3, stage: "Отклики", source: "HeadHunter" },
   { id: 11, vacancyId: 3, stage: "Скрининг", source: "Рекомендации" },
   { id: 12, vacancyId: 3, stage: "Интервью", source: "HeadHunter" },
-  { id: 13, vacancyId: 4, stage: "Выход", source: "Яндекс Таблицы" },
+  { id: 13, vacancyId: 4, stage: "Выход", source: "Карьерный сайт" },
   { id: 14, vacancyId: 4, stage: "Оффер", source: "HeadHunter" },
   { id: 15, vacancyId: 4, stage: "Финал", source: "Рекомендации" },
   { id: 16, vacancyId: 5, stage: "Отклики", source: "HeadHunter" },
