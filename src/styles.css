@@ -78,9 +78,38 @@ h2 {
   font-size: 16px;
 }
 
+.filters-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 18px;
+}
+
+.filters-card label {
+  display: grid;
+  gap: 8px;
+}
+
+.filters-card span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.filters-card select {
+  width: 100%;
+  border: 1px solid #d8e0eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 16px;
 }
@@ -154,6 +183,7 @@ h2 {
 
 .funnel-label strong {
   color: #111827;
+  white-space: nowrap;
 }
 
 .funnel-track {
@@ -172,6 +202,13 @@ h2 {
 .risk-list {
   display: grid;
   gap: 12px;
+}
+
+.empty-state {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .risk-item {
@@ -250,7 +287,7 @@ h2 {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 980px;
+  min-width: 1080px;
 }
 
 th,
@@ -280,6 +317,7 @@ tbody tr:last-child td {
 
 @media (max-width: 900px) {
   .metrics-grid,
+  .filters-card,
   .content-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -301,6 +339,7 @@ tbody tr:last-child td {
   }
 
   .metrics-grid,
+  .filters-card,
   .content-grid {
     grid-template-columns: 1fr;
   }
