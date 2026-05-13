@@ -50,6 +50,74 @@ const prototypes = [
   }
 ];
 
+const hiringPulseKpis = [
+  { label: "Активные вакансии", value: "42", detail: "+5 за неделю" },
+  { label: "Кандидаты в работе", value: "318", detail: "В активных этапах" },
+  { label: "Офферы", value: "24", detail: "За текущий месяц" },
+  { label: "Принятые офферы", value: "17", detail: "71% конверсия" },
+  { label: "Средний срок закрытия", value: "34 дн.", detail: "На 4 дня выше цели" },
+  { label: "Вакансии в риске", value: "8", detail: "Требуют внимания" }
+];
+
+const hiringPulseInsights = [
+  "8 вакансий находятся в зоне риска",
+  "Конверсия офферов снизилась на 6%",
+  "Основная просадка — на этапе интервью",
+  "По направлению IT не хватает входящего потока",
+  "Срок закрытия senior-ролей выше целевого"
+];
+
+const hiringPulseFunnel = [
+  { stage: "Отклик", count: 520, conversion: "100%" },
+  { stage: "Скрининг", count: 318, conversion: "61%" },
+  { stage: "Интервью", count: 146, conversion: "46%" },
+  { stage: "Финал", count: 58, conversion: "40%" },
+  { stage: "Оффер", count: 24, conversion: "41%" },
+  { stage: "Выход", count: 17, conversion: "71%" }
+];
+
+const hiringPulseRisks = [
+  {
+    vacancy: "Senior Frontend Developer",
+    direction: "IT",
+    recruiter: "Рекрутер A",
+    daysOpen: 48,
+    reason: "Низкий входящий поток релевантных кандидатов",
+    level: "Высокий"
+  },
+  {
+    vacancy: "Product Manager B2B",
+    direction: "Продукт",
+    recruiter: "Рекрутер B",
+    daysOpen: 39,
+    reason: "Задержка обратной связи после интервью",
+    level: "Средний"
+  },
+  {
+    vacancy: "Data Analyst",
+    direction: "Аналитика",
+    recruiter: "Рекрутер C",
+    daysOpen: 44,
+    reason: "Кандидаты отказываются на этапе оффера",
+    level: "Высокий"
+  },
+  {
+    vacancy: "HR Business Partner",
+    direction: "HR",
+    recruiter: "Рекрутер D",
+    daysOpen: 31,
+    reason: "Долгое согласование финального кандидата",
+    level: "Средний"
+  }
+];
+
+const hiringPulseWeeks = [
+  { week: "Неделя 1", candidates: 94, offers: 5, closures: 3 },
+  { week: "Неделя 2", candidates: 108, offers: 7, closures: 5 },
+  { week: "Неделя 3", candidates: 87, offers: 4, closures: 4 },
+  { week: "Неделя 4", candidates: 116, offers: 8, closures: 6 }
+];
+
 type CurrentMvpProps = {
   onBack: () => void;
 };
@@ -512,12 +580,191 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
   );
 }
 
+type HiringPulseProps = {
+  onBack: () => void;
+};
+
+function HiringPulse({ onBack }: HiringPulseProps) {
+  const maxFunnelCount = Math.max(...hiringPulseFunnel.map((item) => item.count));
+  const maxWeeklyValue = Math.max(
+    ...hiringPulseWeeks.flatMap((week) => [week.candidates, week.offers * 10, week.closures * 10])
+  );
+
+  return (
+    <main className="pulse-shell">
+      <button className="prototype-back" type="button" onClick={onBack}>
+        Назад к вариантам
+      </button>
+
+      <header className="pulse-hero">
+        <div>
+          <p className="pulse-eyebrow">Hiring Pulse</p>
+          <h1>Пульс подбора</h1>
+          <p>
+            Управленческий обзор: где подбор идет стабильно, а где уже нужны решения.
+          </p>
+        </div>
+        <div className="pulse-status">
+          <span>Общий статус</span>
+          <strong>Требует внимания</strong>
+        </div>
+      </header>
+
+      <section className="pulse-kpi-grid" aria-label="Ключевые показатели Hiring Pulse">
+        {hiringPulseKpis.map((item) => (
+          <article className="pulse-kpi-card" key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <p>{item.detail}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="pulse-grid">
+        <article className="pulse-panel pulse-health">
+          <div className="pulse-section-heading">
+            <div>
+              <span>Состояние</span>
+              <h2>Общее состояние подбора</h2>
+            </div>
+            <b>Требует внимания</b>
+          </div>
+
+          <ul className="pulse-insights">
+            {hiringPulseInsights.map((insight) => (
+              <li key={insight}>{insight}</li>
+            ))}
+          </ul>
+        </article>
+
+        <article className="pulse-panel">
+          <div className="pulse-section-heading">
+            <div>
+              <span>Командная воронка</span>
+              <h2>Воронка подбора</h2>
+            </div>
+          </div>
+
+          <div className="pulse-funnel">
+            {hiringPulseFunnel.map((item) => (
+              <div className="pulse-funnel-row" key={item.stage}>
+                <div className="pulse-funnel-topline">
+                  <span>{item.stage}</span>
+                  <strong>
+                    {item.count} · {item.conversion}
+                  </strong>
+                </div>
+                <div className="pulse-track">
+                  <div
+                    className="pulse-bar"
+                    style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="pulse-panel">
+        <div className="pulse-section-heading">
+          <div>
+            <span>Фокус недели</span>
+            <h2>Проблемные вакансии</h2>
+          </div>
+        </div>
+
+        <div className="pulse-risk-grid">
+          {hiringPulseRisks.map((risk) => (
+            <article className="pulse-risk-card" key={risk.vacancy}>
+              <div className="pulse-risk-card-header">
+                <div>
+                  <span>{risk.direction}</span>
+                  <h3>{risk.vacancy}</h3>
+                </div>
+                <b className={risk.level === "Высокий" ? "is-high" : "is-medium"}>
+                  {risk.level}
+                </b>
+              </div>
+              <dl>
+                <div>
+                  <dt>Рекрутер</dt>
+                  <dd>{risk.recruiter}</dd>
+                </div>
+                <div>
+                  <dt>Дней открыта</dt>
+                  <dd>{risk.daysOpen}</dd>
+                </div>
+                <div>
+                  <dt>Причина риска</dt>
+                  <dd>{risk.reason}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="pulse-panel">
+        <div className="pulse-section-heading">
+          <div>
+            <span>Последние 4 недели</span>
+            <h2>Динамика за 4 недели</h2>
+          </div>
+        </div>
+
+        <div className="pulse-week-grid">
+          {hiringPulseWeeks.map((week) => (
+            <article className="pulse-week-card" key={week.week}>
+              <h3>{week.week}</h3>
+              <div className="pulse-week-metric">
+                <span>Новые кандидаты</span>
+                <strong>{week.candidates}</strong>
+                <div className="pulse-mini-track">
+                  <div
+                    className="pulse-mini-bar candidates"
+                    style={{ width: `${(week.candidates / maxWeeklyValue) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <div className="pulse-week-metric">
+                <span>Офферы</span>
+                <strong>{week.offers}</strong>
+                <div className="pulse-mini-track">
+                  <div
+                    className="pulse-mini-bar offers"
+                    style={{ width: `${((week.offers * 10) / maxWeeklyValue) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <div className="pulse-week-metric">
+                <span>Закрытия</span>
+                <strong>{week.closures}</strong>
+                <div className="pulse-mini-track">
+                  <div
+                    className="pulse-mini-bar closures"
+                    style={{ width: `${((week.closures * 10) / maxWeeklyValue) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
   const [selectedPrototype, setSelectedPrototype] = useState<string | null>(null);
   const activePrototype = prototypes.find((prototype) => prototype.id === selectedPrototype);
 
   if (selectedPrototype === "current") {
     return <CurrentMvp onBack={() => setSelectedPrototype(null)} />;
+  }
+
+  if (selectedPrototype === "hiring-pulse") {
+    return <HiringPulse onBack={() => setSelectedPrototype(null)} />;
   }
 
   if (activePrototype) {
