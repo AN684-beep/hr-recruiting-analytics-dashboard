@@ -143,23 +143,6 @@ export default function App() {
     .sort((first, second) => second.count - first.count);
 
   const slaVacancies = filteredVacancies.filter((vacancy) => vacancy.status === "closed");
-  const slaGrades = Array.from(new Set(filteredVacancies.map((vacancy) => vacancy.grade)));
-  const slaByGrade = slaGrades.map((grade) => {
-    const gradeVacancies = filteredVacancies.filter((vacancy) => vacancy.grade === grade);
-    const gradeClosedVacancies = gradeVacancies.filter((vacancy) => vacancy.status === "closed");
-    const averageTarget = average(gradeVacancies.map((vacancy) => vacancy.gradeTargetDays));
-    const averageActual = average(
-      gradeClosedVacancies.map((vacancy) => vacancy.actualCloseDays || vacancy.daysToClose)
-    );
-
-    return {
-      grade,
-      averageTarget,
-      averageActual,
-      progress: averageActual === 0 ? 0 : Math.min((averageTarget / averageActual) * 100, 100)
-    };
-  });
-
   const slaSummary = [
     {
       label: "Средний целевой срок",
@@ -292,35 +275,13 @@ export default function App() {
           <span>По выбранным фильтрам</span>
         </div>
 
-        <div className="sla-content">
-          <div className="sla-summary">
-            {slaSummary.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-
-          <div className="grade-list">
-            {slaByGrade.length === 0 ? (
-              <p className="empty-state">Данных по срокам для выбранных фильтров нет.</p>
-            ) : (
-              slaByGrade.map((item) => (
-                <div className="grade-item" key={item.grade}>
-                  <div className="grade-label">
-                    <span>{item.grade}</span>
-                    <strong>
-                      {item.averageActual || 0} дн. / цель {item.averageTarget} дн.
-                    </strong>
-                  </div>
-                  <div className="funnel-track">
-                    <div className="funnel-bar" style={{ width: `${item.progress}%` }} />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        <div className="sla-summary">
+          {slaSummary.map((item) => (
+            <div key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
         </div>
       </section>
 
