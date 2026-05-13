@@ -118,6 +118,119 @@ const hiringPulseWeeks = [
   { week: "Неделя 4", candidates: 116, offers: 8, closures: 6 }
 ];
 
+const recruiterOpsIssues = [
+  { label: "Кандидаты без движения", value: 18, accent: "high" },
+  { label: "Просроченные этапы", value: 11, accent: "high" },
+  { label: "Вакансии без новых кандидатов", value: 6, accent: "medium" },
+  { label: "Офферы в ожидании", value: 5, accent: "medium" },
+  { label: "Фидбек от заказчика просрочен", value: 9, accent: "high" }
+];
+
+const recruiterOpsFilters = {
+  recruiters: ["Все рекрутеры", "Рекрутер A", "Рекрутер B", "Рекрутер C", "Рекрутер D"],
+  directions: ["Все направления", "IT", "Продукт", "Аналитика", "HR"],
+  priorities: ["Все приоритеты", "Высокий", "Средний", "Низкий"],
+  issueTypes: [
+    "Все типы",
+    "Нет движения",
+    "Просрочен этап",
+    "Нет новых кандидатов",
+    "Оффер ожидает решения",
+    "Просрочен фидбек"
+  ]
+};
+
+const recruiterOpsTasks = [
+  {
+    type: "Нет движения",
+    vacancy: "Senior Frontend Developer",
+    candidate: "Frontend candidate",
+    recruiter: "Рекрутер A",
+    idleDays: 7,
+    priority: "Высокий",
+    action: "Назначить следующий контакт и обновить статус"
+  },
+  {
+    type: "Просрочен этап",
+    vacancy: "Product Manager B2B",
+    candidate: "Кандидат 1",
+    recruiter: "Рекрутер B",
+    idleDays: 5,
+    priority: "Высокий",
+    action: "Запросить решение по интервью у заказчика"
+  },
+  {
+    type: "Нет новых кандидатов",
+    vacancy: "Data Analyst",
+    candidate: "Группа кандидатов",
+    recruiter: "Рекрутер C",
+    idleDays: 6,
+    priority: "Средний",
+    action: "Проверить источники и расширить поиск"
+  },
+  {
+    type: "Оффер ожидает решения",
+    vacancy: "HR Business Partner",
+    candidate: "Кандидат 2",
+    recruiter: "Рекрутер D",
+    idleDays: 3,
+    priority: "Средний",
+    action: "Согласовать дату ответа по офферу"
+  },
+  {
+    type: "Просрочен фидбек",
+    vacancy: "System Analyst",
+    candidate: "Кандидат 3",
+    recruiter: "Рекрутер A",
+    idleDays: 4,
+    priority: "Высокий",
+    action: "Эскалировать фидбек тимлиду направления"
+  }
+];
+
+const recruiterOpsVacancies = [
+  {
+    vacancy: "Senior Frontend Developer",
+    direction: "IT",
+    status: "Интервью",
+    candidates: 18,
+    lastCandidate: "2 дня назад",
+    nextStep: "Контроль фидбека сегодня"
+  },
+  {
+    vacancy: "Product Manager B2B",
+    direction: "Продукт",
+    status: "Финал",
+    candidates: 9,
+    lastCandidate: "5 дней назад",
+    nextStep: "Согласовать финального кандидата"
+  },
+  {
+    vacancy: "Data Analyst",
+    direction: "Аналитика",
+    status: "Скрининг",
+    candidates: 14,
+    lastCandidate: "6 дней назад",
+    nextStep: "Обновить поиск по источникам"
+  },
+  {
+    vacancy: "HR Business Partner",
+    direction: "HR",
+    status: "Оффер",
+    candidates: 6,
+    lastCandidate: "3 дня назад",
+    nextStep: "Дождаться решения кандидата"
+  }
+];
+
+const recruiterOpsOffers = [
+  { label: "Сделано", value: 14 },
+  { label: "Ожидают решения", value: 5 },
+  { label: "Принято", value: 9 },
+  { label: "Отказ", value: 3 },
+  { label: "Среднее время ответа", value: "3,2 дн." }
+];
+
 type CurrentMvpProps = {
   onBack: () => void;
 };
@@ -755,6 +868,159 @@ function HiringPulse({ onBack }: HiringPulseProps) {
   );
 }
 
+type RecruiterOperationsProps = {
+  onBack: () => void;
+};
+
+function RecruiterOperations({ onBack }: RecruiterOperationsProps) {
+  return (
+    <main className="ops-shell">
+      <button className="prototype-back" type="button" onClick={onBack}>
+        Назад к вариантам
+      </button>
+
+      <header className="ops-header">
+        <div>
+          <p className="ops-eyebrow">Recruiter Operations</p>
+          <h1>Операционный центр рекрутинга</h1>
+          <p>Ежедневный экран действий: что просрочено, где нет движения и что нужно сделать сегодня.</p>
+        </div>
+      </header>
+
+      <section className="ops-filter-bar" aria-label="Быстрые фильтры Recruiter Operations">
+        <label>
+          <span>Рекрутер</span>
+          <select defaultValue="Все рекрутеры">
+            {recruiterOpsFilters.recruiters.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Направление</span>
+          <select defaultValue="Все направления">
+            {recruiterOpsFilters.directions.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Приоритет</span>
+          <select defaultValue="Все приоритеты">
+            {recruiterOpsFilters.priorities.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Тип проблемы</span>
+          <select defaultValue="Все типы">
+            {recruiterOpsFilters.issueTypes.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      <section className="ops-issue-grid" aria-label="Быстрые проблемы">
+        {recruiterOpsIssues.map((issue) => (
+          <article className={`ops-issue-card ${issue.accent}`} key={issue.label}>
+            <span>{issue.label}</span>
+            <strong>{issue.value}</strong>
+          </article>
+        ))}
+      </section>
+
+      <section className="ops-layout">
+        <article className="ops-panel ops-actions-panel">
+          <div className="ops-section-heading">
+            <div>
+              <span>Сегодня</span>
+              <h2>Требует действия</h2>
+            </div>
+            <b>5 задач</b>
+          </div>
+
+          <div className="ops-task-list">
+            {recruiterOpsTasks.map((task) => (
+              <article className="ops-task-card" key={`${task.type}-${task.vacancy}`}>
+                <div className="ops-task-main">
+                  <div>
+                    <span className="ops-problem-type">{task.type}</span>
+                    <h3>{task.vacancy}</h3>
+                  </div>
+                  <b className={task.priority === "Высокий" ? "high" : "medium"}>{task.priority}</b>
+                </div>
+                <div className="ops-task-meta">
+                  <span>{task.candidate}</span>
+                  <span>{task.recruiter}</span>
+                  <span>{task.idleDays} дн. без движения</span>
+                </div>
+                <p>{task.action}</p>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <aside className="ops-panel ops-offers-panel">
+          <div className="ops-section-heading">
+            <div>
+              <span>Офферы</span>
+              <h2>Статус решений</h2>
+            </div>
+          </div>
+
+          <div className="ops-offer-list">
+            {recruiterOpsOffers.map((offer) => (
+              <div className="ops-offer-item" key={offer.label}>
+                <span>{offer.label}</span>
+                <strong>{offer.value}</strong>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </section>
+
+      <section className="ops-panel">
+        <div className="ops-section-heading">
+          <div>
+            <span>Активный поиск</span>
+            <h2>Вакансии в работе</h2>
+          </div>
+        </div>
+
+        <div className="ops-vacancy-grid">
+          {recruiterOpsVacancies.map((item) => (
+            <article className="ops-vacancy-card" key={item.vacancy}>
+              <div className="ops-vacancy-top">
+                <div>
+                  <span>{item.direction}</span>
+                  <h3>{item.vacancy}</h3>
+                </div>
+                <b>{item.status}</b>
+              </div>
+              <dl>
+                <div>
+                  <dt>Кандидатов в воронке</dt>
+                  <dd>{item.candidates}</dd>
+                </div>
+                <div>
+                  <dt>Последний новый кандидат</dt>
+                  <dd>{item.lastCandidate}</dd>
+                </div>
+                <div>
+                  <dt>Следующий контрольный шаг</dt>
+                  <dd>{item.nextStep}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
   const [selectedPrototype, setSelectedPrototype] = useState<string | null>(null);
   const activePrototype = prototypes.find((prototype) => prototype.id === selectedPrototype);
@@ -765,6 +1031,10 @@ export default function App() {
 
   if (selectedPrototype === "hiring-pulse") {
     return <HiringPulse onBack={() => setSelectedPrototype(null)} />;
+  }
+
+  if (selectedPrototype === "recruiter-operations") {
+    return <RecruiterOperations onBack={() => setSelectedPrototype(null)} />;
   }
 
   if (activePrototype) {
