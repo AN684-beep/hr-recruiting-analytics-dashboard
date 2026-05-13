@@ -22,7 +22,35 @@ const groupByCount = <T,>(items: T[], getKey: (item: T) => string) =>
     return result;
   }, {});
 
-export default function App() {
+const prototypes = [
+  {
+    id: "current",
+    title: "Current MVP",
+    description: "Текущий рабочий дашборд с фильтрами, KPI, рисками и аналитическими блоками."
+  },
+  {
+    id: "hiring-pulse",
+    title: "Hiring Pulse",
+    description: "Заглушка для будущего обзора темпа найма и ключевых сигналов."
+  },
+  {
+    id: "recruiter-operations",
+    title: "Recruiter Operations",
+    description: "Заглушка для будущего операционного экрана по рекрутерам."
+  },
+  {
+    id: "funnel-analytics",
+    title: "Funnel Analytics",
+    description: "Заглушка для будущей глубокой аналитики воронки подбора."
+  },
+  {
+    id: "hiring-plan",
+    title: "Hiring Plan",
+    description: "Заглушка для будущего план-факт анализа найма."
+  }
+];
+
+function CurrentMvp() {
   const [selectedDepartment, setSelectedDepartment] = useState("Все департаменты");
   const [selectedTeam, setSelectedTeam] = useState("Все отделы");
   const [selectedRecruiter, setSelectedRecruiter] = useState("Все рекрутеры");
@@ -467,6 +495,58 @@ export default function App() {
             </tbody>
           </table>
         </div>
+      </section>
+    </main>
+  );
+}
+
+export default function App() {
+  const [selectedPrototype, setSelectedPrototype] = useState<string | null>(null);
+  const activePrototype = prototypes.find((prototype) => prototype.id === selectedPrototype);
+
+  if (selectedPrototype === "current") {
+    return <CurrentMvp />;
+  }
+
+  if (activePrototype) {
+    return (
+      <main className="prototype-shell">
+        <button className="prototype-back" type="button" onClick={() => setSelectedPrototype(null)}>
+          Назад к вариантам
+        </button>
+        <section className="prototype-placeholder card">
+          <p className="eyebrow">Прототип</p>
+          <h1>{activePrototype.title}</h1>
+          <p className="description">
+            Этот вариант пока является заглушкой. Полноценный дизайн и данные будут добавлены позже.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="prototype-shell">
+      <header className="prototype-header">
+        <p className="eyebrow">HR Dashboard prototypes</p>
+        <h1>Выбор прототипа</h1>
+        <p className="description">
+          Текущий MVP сохранен отдельно. Остальные варианты пока доступны как заглушки.
+        </p>
+      </header>
+
+      <section className="prototype-grid" aria-label="Варианты прототипов">
+        {prototypes.map((prototype) => (
+          <button
+            className="prototype-card card"
+            key={prototype.id}
+            type="button"
+            onClick={() => setSelectedPrototype(prototype.id)}
+          >
+            <span>{prototype.title}</span>
+            <p>{prototype.description}</p>
+          </button>
+        ))}
       </section>
     </main>
   );
