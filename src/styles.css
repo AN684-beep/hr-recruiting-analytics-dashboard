@@ -205,6 +205,7 @@ h2 {
 
 .funnel-card,
 .risks-card,
+.sla-card,
 .analytics-card,
 .table-card {
   padding: 22px;
@@ -248,6 +249,69 @@ h2 {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #2f80ed, #16a085);
+}
+
+.sla-card {
+  margin-bottom: 16px;
+}
+
+.sla-content {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 20px;
+}
+
+.sla-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sla-summary div {
+  border: 1px solid #edf2f7;
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 14px;
+}
+
+.sla-summary span {
+  display: block;
+  margin-bottom: 8px;
+  color: #7a8698;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.sla-summary strong {
+  color: #111827;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.grade-list {
+  display: grid;
+  gap: 14px;
+}
+
+.grade-item {
+  display: grid;
+  gap: 8px;
+}
+
+.grade-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #334155;
+  font-size: 14px;
+}
+
+.grade-label strong {
+  flex: 0 0 auto;
+  color: #111827;
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .summary-row {
@@ -438,6 +502,7 @@ tbody tr:last-child td {
   .metrics-grid,
   .filters-grid,
   .analytics-grid,
+  .sla-content,
   .content-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -461,6 +526,8 @@ tbody tr:last-child td {
   .metrics-grid,
   .filters-grid,
   .analytics-grid,
+  .sla-content,
+  .sla-summary,
   .content-grid {
     grid-template-columns: 1fr;
   }
@@ -475,6 +542,7 @@ tbody tr:last-child td {
 
   .funnel-card,
   .risks-card,
+  .sla-card,
   .analytics-card,
   .table-card,
   .metric-card {
