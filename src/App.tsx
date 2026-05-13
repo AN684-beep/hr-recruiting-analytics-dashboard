@@ -50,7 +50,11 @@ const prototypes = [
   }
 ];
 
-function CurrentMvp() {
+type CurrentMvpProps = {
+  onBack: () => void;
+};
+
+function CurrentMvp({ onBack }: CurrentMvpProps) {
   const [selectedDepartment, setSelectedDepartment] = useState("Все департаменты");
   const [selectedTeam, setSelectedTeam] = useState("Все отделы");
   const [selectedRecruiter, setSelectedRecruiter] = useState("Все рекрутеры");
@@ -223,7 +227,14 @@ function CurrentMvp() {
     );
 
   return (
-    <main className="dashboard">
+    <>
+      <div className="current-mvp-back">
+        <button className="prototype-back" type="button" onClick={onBack}>
+          Назад к вариантам
+        </button>
+      </div>
+
+      <main className="dashboard">
       <header className="page-header">
         <div>
           <p className="eyebrow">Внутренняя HR-аналитика</p>
@@ -496,7 +507,8 @@ function CurrentMvp() {
           </table>
         </div>
       </section>
-    </main>
+      </main>
+    </>
   );
 }
 
@@ -505,7 +517,7 @@ export default function App() {
   const activePrototype = prototypes.find((prototype) => prototype.id === selectedPrototype);
 
   if (selectedPrototype === "current") {
-    return <CurrentMvp />;
+    return <CurrentMvp onBack={() => setSelectedPrototype(null)} />;
   }
 
   if (activePrototype) {
