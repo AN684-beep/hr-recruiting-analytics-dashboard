@@ -99,6 +99,16 @@ select {
   padding: 28px;
 }
 
+.current-mvp-back {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding-top: 24px;
+}
+
+.current-mvp-back .prototype-back {
+  margin-bottom: 0;
+}
+
 .page-header {
   display: flex;
   align-items: flex-end;
