@@ -33,6 +33,72 @@ select {
   padding: 40px 0;
 }
 
+.prototype-shell {
+  width: min(980px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 40px 0;
+}
+
+.prototype-header {
+  margin-bottom: 24px;
+}
+
+.prototype-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.prototype-card {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 22px;
+  border: 1px solid #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prototype-card:hover {
+  border-color: #b9c6d8;
+  background: #fbfdff;
+}
+
+.prototype-card span {
+  color: #111827;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.prototype-card p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.prototype-back {
+  border: 1px solid #d8e0eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  min-height: 36px;
+  margin-bottom: 18px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prototype-back:hover {
+  border-color: #b9c6d8;
+  background: #f8fafc;
+}
+
+.prototype-placeholder {
+  padding: 28px;
+}
+
 .page-header {
   display: flex;
   align-items: flex-end;
@@ -470,6 +536,7 @@ tbody tr:last-child td {
   .metrics-grid,
   .filters-grid,
   .analytics-grid,
+  .prototype-grid,
   .content-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -493,6 +560,7 @@ tbody tr:last-child td {
   .metrics-grid,
   .filters-grid,
   .analytics-grid,
+  .prototype-grid,
   .sla-summary,
   .content-grid {
     grid-template-columns: 1fr;
