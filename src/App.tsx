@@ -231,6 +231,122 @@ const recruiterOpsOffers = [
   { label: "Среднее время ответа", value: "3,2 дн." }
 ];
 
+const funnelAnalyticsKpis = [
+  { label: "Входящий поток кандидатов", value: "840", detail: "+12% к прошлому месяцу" },
+  { label: "Дошли до интервью", value: "286", detail: "34% от входящего потока" },
+  { label: "Дошли до финала", value: "92", detail: "32% от интервью" },
+  { label: "Получили оффер", value: "46", detail: "50% от финала" },
+  { label: "Вышли на работу", value: "31", detail: "67% от офферов" },
+  { label: "Общая конверсия", value: "3,7%", detail: "От отклика до выхода" }
+];
+
+const funnelAnalyticsStages = [
+  { stage: "Отклик", count: 840, conversion: "100%", lost: 0, averageDays: "0,5 дн.", health: "good" },
+  { stage: "Скрининг", count: 512, conversion: "61%", lost: 328, averageDays: "1,8 дн.", health: "good" },
+  { stage: "Интервью", count: 286, conversion: "56%", lost: 226, averageDays: "4,1 дн.", health: "warning" },
+  { stage: "Технический этап", count: 138, conversion: "48%", lost: 148, averageDays: "6,4 дн.", health: "danger" },
+  { stage: "Финал", count: 92, conversion: "67%", lost: 46, averageDays: "3,2 дн.", health: "good" },
+  { stage: "Оффер", count: 46, conversion: "50%", lost: 46, averageDays: "2,7 дн.", health: "warning" },
+  { stage: "Выход", count: 31, conversion: "67%", lost: 15, averageDays: "14 дн.", health: "good" }
+];
+
+const funnelBottlenecks = [
+  {
+    stage: "Интервью",
+    problem: "Конверсия ниже нормы",
+    gap: "на 12%",
+    reason: "Не хватает калибровки профиля с нанимающими менеджерами",
+    action: "Провести сверку критериев и обновить scorecard"
+  },
+  {
+    stage: "Технический этап",
+    problem: "Этап занимает слишком много времени",
+    gap: "6,4 дня вместо 3",
+    reason: "Долгое назначение и проверка тестовых заданий",
+    action: "Сократить SLA проверки и заранее бронировать слоты"
+  },
+  {
+    stage: "Оффер",
+    problem: "Высокий процент отказов",
+    gap: "на 9% хуже нормы",
+    reason: "Ожидания кандидатов по условиям расходятся с вилкой",
+    action: "Проверять ожидания до финального интервью"
+  }
+];
+
+const funnelSources = [
+  {
+    source: "HeadHunter",
+    candidates: 320,
+    interviews: 96,
+    offers: 12,
+    conversion: "3,8%",
+    quality: "Среднее"
+  },
+  {
+    source: "Рекомендации",
+    candidates: 118,
+    interviews: 62,
+    offers: 18,
+    conversion: "15,3%",
+    quality: "Высокое"
+  },
+  {
+    source: "Внутренняя база",
+    candidates: 146,
+    interviews: 54,
+    offers: 8,
+    conversion: "5,5%",
+    quality: "Хорошее"
+  },
+  {
+    source: "LinkedIn",
+    candidates: 104,
+    interviews: 42,
+    offers: 6,
+    conversion: "5,8%",
+    quality: "Хорошее"
+  },
+  {
+    source: "Карьерный сайт",
+    candidates: 152,
+    interviews: 32,
+    offers: 2,
+    conversion: "1,3%",
+    quality: "Низкое"
+  }
+];
+
+const funnelSegments = [
+  {
+    direction: "IT",
+    incoming: 360,
+    offerConversion: "4,4%",
+    averageTimeToOffer: "18,5 дн.",
+    problemStage: "Технический этап"
+  },
+  {
+    direction: "Продукт",
+    incoming: 156,
+    offerConversion: "5,1%",
+    averageTimeToOffer: "15,2 дн.",
+    problemStage: "Интервью"
+  },
+  {
+    direction: "Аналитика",
+    incoming: 184,
+    offerConversion: "4,9%",
+    averageTimeToOffer: "16,8 дн.",
+    problemStage: "Финал"
+  },
+  {
+    direction: "HR",
+    incoming: 140,
+    offerConversion: "7,1%",
+    averageTimeToOffer: "12,4 дн.",
+    problemStage: "Оффер"
+  }
+];
 type CurrentMvpProps = {
   onBack: () => void;
 };
@@ -416,278 +532,277 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
       </div>
 
       <main className="dashboard">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">Внутренняя HR-аналитика</p>
-          <h1>Аналитика рекрутмента</h1>
-          <p className="description">
-            Контроль нагрузки, SLA, рисков и результатов команды рекрутинга
-          </p>
-        </div>
-      </header>
-
-      <section className="filters-card card" aria-label="Фильтры дашборда">
-        <div className="filters-heading">
+        <header className="page-header">
           <div>
-            <h2>Фильтры</h2>
-            <span>Срез данных для всех блоков</span>
+            <p className="eyebrow">Внутренняя HR-аналитика</p>
+            <h1>Аналитика рекрутмента</h1>
+            <p className="description">
+              Контроль нагрузки, SLA, рисков и результатов команды рекрутинга
+            </p>
           </div>
-          <button className="reset-button" type="button" onClick={resetFilters}>
-            Сбросить фильтры
-          </button>
-        </div>
+        </header>
 
-        <div className="filters-grid">
-          <label>
-            <span>Департамент</span>
-            <select
-              value={selectedDepartment}
-              onChange={(event) => {
-                setSelectedDepartment(event.target.value);
-                setSelectedTeam("Все отделы");
-              }}
-            >
-              <option>Все департаменты</option>
-              {departments.map((department) => (
-                <option key={department}>{department}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Отдел</span>
-            <select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>
-              <option>Все отделы</option>
-              {availableTeams.map((team) => (
-                <option key={team.name}>{team.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Рекрутер</span>
-            <select
-              value={selectedRecruiter}
-              onChange={(event) => setSelectedRecruiter(event.target.value)}
-            >
-              <option>Все рекрутеры</option>
-              {recruiters.map((recruiter) => (
-                <option key={recruiter}>{recruiter}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </section>
-
-      <section className="metrics-grid" aria-label="Ключевые метрики">
-        {metrics.map((metric) => (
-          <article className="card metric-card" key={metric.label}>
-            <p>{metric.label}</p>
-            <strong>{metric.value}</strong>
-            <span>{metric.hint}</span>
-          </article>
-        ))}
-      </section>
-
-      <section className="card sla-card">
-        <div className="section-heading">
-          <h2>Сроки и SLA</h2>
-          <span>По выбранным фильтрам</span>
-        </div>
-
-        <div className="sla-summary">
-          {slaSummary.map((item) => (
-            <div key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
+        <section className="filters-card card" aria-label="Фильтры дашборда">
+          <div className="filters-heading">
+            <div>
+              <h2>Фильтры</h2>
+              <span>Срез данных для всех блоков</span>
             </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="content-grid">
-        <article className="card funnel-card">
-          <div className="section-heading">
-            <h2>Воронка подбора</h2>
-            <span>С учетом фильтров</span>
+            <button className="reset-button" type="button" onClick={resetFilters}>
+              Сбросить фильтры
+            </button>
           </div>
 
-          <div className="funnel-list">
-            {funnel.map((item) => (
-              <div className="funnel-row" key={item.stage}>
-                <div className="funnel-label">
-                  <span>{item.stage}</span>
-                  <strong>
-                    {item.count} кандидатов · {item.conversion}
-                  </strong>
-                </div>
-                <div className="funnel-track">
-                  <div
-                    className="funnel-bar"
-                    style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
-                  />
-                </div>
+          <div className="filters-grid">
+            <label>
+              <span>Департамент</span>
+              <select
+                value={selectedDepartment}
+                onChange={(event) => {
+                  setSelectedDepartment(event.target.value);
+                  setSelectedTeam("Все отделы");
+                }}
+              >
+                <option>Все департаменты</option>
+                {departments.map((department) => (
+                  <option key={department}>{department}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Отдел</span>
+              <select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>
+                <option>Все отделы</option>
+                {availableTeams.map((team) => (
+                  <option key={team.name}>{team.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Рекрутер</span>
+              <select
+                value={selectedRecruiter}
+                onChange={(event) => setSelectedRecruiter(event.target.value)}
+              >
+                <option>Все рекрутеры</option>
+                {recruiters.map((recruiter) => (
+                  <option key={recruiter}>{recruiter}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section className="metrics-grid" aria-label="Ключевые метрики">
+          {metrics.map((metric) => (
+            <article className="card metric-card" key={metric.label}>
+              <p>{metric.label}</p>
+              <strong>{metric.value}</strong>
+              <span>{metric.hint}</span>
+            </article>
+          ))}
+        </section>
+
+        <section className="card sla-card">
+          <div className="section-heading">
+            <h2>Сроки и SLA</h2>
+            <span>По выбранным фильтрам</span>
+          </div>
+
+          <div className="sla-summary">
+            {slaSummary.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
               </div>
             ))}
           </div>
-        </article>
+        </section>
 
-        <article className="card risks-card">
-          <div className="section-heading">
-            <h2>Риски подбора</h2>
-            <span>По выбранным фильтрам</span>
-          </div>
-
-          <div className="risk-list">
-            {riskyVacancies.length === 0 ? (
-              <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
-            ) : (
-              riskyVacancies.map((risk) => (
-                <div className="risk-item" key={risk.id}>
-                  <div className="risk-header">
-                    <div>
-                      <span className="risk-label">Вакансия</span>
-                      <strong className="risk-title">{risk.title}</strong>
-                    </div>
-                    <b className={`risk-level ${risk.riskLevel}`}>{risk.riskLevelLabel}</b>
-                  </div>
-
-                  <div className="risk-details">
-                    <p>
-                      <span>Рекрутер</span>
-                      {risk.recruiter}
-                    </p>
-                    <p>
-                      <span>Причина риска</span>
-                      {risk.riskReason}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </article>
-      </section>
-
-      <section className="analytics-grid">
-        <article className="card analytics-card">
-          <div className="section-heading">
-            <h2>Источники подбора</h2>
-            <span>По выбранным фильтрам</span>
-          </div>
-
-          <div className="summary-row">
-            <div>
-              <span>Всего кандидатов</span>
-              <strong>{filteredCandidates.length}</strong>
+        <section className="content-grid">
+          <article className="card funnel-card">
+            <div className="section-heading">
+              <h2>Воронка подбора</h2>
+              <span>С учетом фильтров</span>
             </div>
-            <div>
-              <span>По рекомендациям</span>
-              <strong>{referralCandidates}</strong>
-            </div>
-          </div>
 
-          <div className="breakdown-list">
-            {sourceDistribution.length === 0 ? (
-              <p className="empty-state">Кандидатов по выбранным фильтрам нет.</p>
-            ) : (
-              sourceDistribution.map((item) => (
-                <div className="breakdown-item" key={item.source}>
-                  <div className="breakdown-label">
-                    <span>{item.source}</span>
+            <div className="funnel-list">
+              {funnel.map((item) => (
+                <div className="funnel-row" key={item.stage}>
+                  <div className="funnel-label">
+                    <span>{item.stage}</span>
                     <strong>
-                      {item.count} · {item.share}
+                      {item.count} кандидатов · {item.conversion}
                     </strong>
                   </div>
                   <div className="funnel-track">
                     <div
                       className="funnel-bar"
-                      style={{
-                        width: `${(item.count / Math.max(filteredCandidates.length, 1)) * 100}%`
-                      }}
+                      style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
                     />
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        </article>
-
-        <article className="card analytics-card">
-          <div className="section-heading">
-            <h2>Офферы</h2>
-            <span>Статусы и причины отказов</span>
-          </div>
-
-          <div className="summary-row">
-            <div>
-              <span>Всего офферов</span>
-              <strong>{filteredOffers.length}</strong>
-            </div>
-            <div>
-              <span>Принятые офферы</span>
-              <strong>{acceptedOffers.length}</strong>
-            </div>
-            <div>
-              <span>Конверсия</span>
-              <strong>{percent(acceptedOffers.length, filteredOffers.length)}</strong>
-            </div>
-          </div>
-
-          <div className="breakdown-list">
-            {declineReasons.length === 0 ? (
-              <p className="empty-state">Отказов по выбранным фильтрам нет.</p>
-            ) : (
-              declineReasons.map((item) => (
-                <div className="reason-item" key={item.reason}>
-                  <span>{item.reason}</span>
-                  <strong>
-                    {item.count} · {item.share}
-                  </strong>
-                </div>
-              ))
-            )}
-          </div>
-        </article>
-      </section>
-
-      <section className="card table-card">
-        <div className="section-heading">
-          <h2>Нагрузка рекрутеров</h2>
-          <span>Моковые данные команды</span>
-        </div>
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Рекрутер</th>
-                <th>Вакансии в работе</th>
-                <th>Закрытые вакансии</th>
-                <th>% закрытых в срок</th>
-                <th>Средний срок закрытия</th>
-                <th>Офферы</th>
-                <th>Принятые офферы</th>
-                <th>Конверсия офферов</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recruiterWorkload.map((recruiter) => (
-                <tr key={recruiter.name}>
-                  <td>{recruiter.name}</td>
-                  <td>{recruiter.activeVacancies}</td>
-                  <td>{recruiter.closedVacancies}</td>
-                  <td>{recruiter.closedOnTime}</td>
-                  <td>{recruiter.averageCloseDays}</td>
-                  <td>{recruiter.offers}</td>
-                  <td>{recruiter.acceptedOffers}</td>
-                  <td>{recruiter.offerConversion}</td>
-                </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </div>
+          </article>
+
+          <article className="card risks-card">
+            <div className="section-heading">
+              <h2>Риски подбора</h2>
+              <span>По выбранным фильтрам</span>
+            </div>
+
+            <div className="risk-list">
+              {riskyVacancies.length === 0 ? (
+                <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
+              ) : (
+                riskyVacancies.map((risk) => (
+                  <div className="risk-item" key={risk.id}>
+                    <div className="risk-header">
+                      <div>
+                        <span className="risk-label">Вакансия</span>
+                        <strong className="risk-title">{risk.title}</strong>
+                      </div>
+                      <b className={`risk-level ${risk.riskLevel}`}>{risk.riskLevelLabel}</b>
+                    </div>
+
+                    <div className="risk-details">
+                      <p>
+                        <span>Рекрутер</span>
+                        {risk.recruiter}
+                      </p>
+                      <p>
+                        <span>Причина риска</span>
+                        {risk.riskReason}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </article>
+        </section>
+        <section className="analytics-grid">
+          <article className="card analytics-card">
+            <div className="section-heading">
+              <h2>Источники подбора</h2>
+              <span>По выбранным фильтрам</span>
+            </div>
+
+            <div className="summary-row">
+              <div>
+                <span>Всего кандидатов</span>
+                <strong>{filteredCandidates.length}</strong>
+              </div>
+              <div>
+                <span>По рекомендациям</span>
+                <strong>{referralCandidates}</strong>
+              </div>
+            </div>
+
+            <div className="breakdown-list">
+              {sourceDistribution.length === 0 ? (
+                <p className="empty-state">Кандидатов по выбранным фильтрам нет.</p>
+              ) : (
+                sourceDistribution.map((item) => (
+                  <div className="breakdown-item" key={item.source}>
+                    <div className="breakdown-label">
+                      <span>{item.source}</span>
+                      <strong>
+                        {item.count} · {item.share}
+                      </strong>
+                    </div>
+                    <div className="funnel-track">
+                      <div
+                        className="funnel-bar"
+                        style={{
+                          width: `${(item.count / Math.max(filteredCandidates.length, 1)) * 100}%`
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </article>
+
+          <article className="card analytics-card">
+            <div className="section-heading">
+              <h2>Офферы</h2>
+              <span>Статусы и причины отказов</span>
+            </div>
+
+            <div className="summary-row">
+              <div>
+                <span>Всего офферов</span>
+                <strong>{filteredOffers.length}</strong>
+              </div>
+              <div>
+                <span>Принятые офферы</span>
+                <strong>{acceptedOffers.length}</strong>
+              </div>
+              <div>
+                <span>Конверсия</span>
+                <strong>{percent(acceptedOffers.length, filteredOffers.length)}</strong>
+              </div>
+            </div>
+
+            <div className="breakdown-list">
+              {declineReasons.length === 0 ? (
+                <p className="empty-state">Отказов по выбранным фильтрам нет.</p>
+              ) : (
+                declineReasons.map((item) => (
+                  <div className="reason-item" key={item.reason}>
+                    <span>{item.reason}</span>
+                    <strong>
+                      {item.count} · {item.share}
+                    </strong>
+                  </div>
+                ))
+              )}
+            </div>
+          </article>
+        </section>
+
+        <section className="card table-card">
+          <div className="section-heading">
+            <h2>Нагрузка рекрутеров</h2>
+            <span>Моковые данные команды</span>
+          </div>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Рекрутер</th>
+                  <th>Вакансии в работе</th>
+                  <th>Закрытые вакансии</th>
+                  <th>% закрытых в срок</th>
+                  <th>Средний срок закрытия</th>
+                  <th>Офферы</th>
+                  <th>Принятые офферы</th>
+                  <th>Конверсия офферов</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recruiterWorkload.map((recruiter) => (
+                  <tr key={recruiter.name}>
+                    <td>{recruiter.name}</td>
+                    <td>{recruiter.activeVacancies}</td>
+                    <td>{recruiter.closedVacancies}</td>
+                    <td>{recruiter.closedOnTime}</td>
+                    <td>{recruiter.averageCloseDays}</td>
+                    <td>{recruiter.offers}</td>
+                    <td>{recruiter.acceptedOffers}</td>
+                    <td>{recruiter.offerConversion}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </main>
     </>
   );
@@ -867,7 +982,6 @@ function HiringPulse({ onBack }: HiringPulseProps) {
     </main>
   );
 }
-
 type RecruiterOperationsProps = {
   onBack: () => void;
 };
@@ -1021,6 +1135,177 @@ function RecruiterOperations({ onBack }: RecruiterOperationsProps) {
   );
 }
 
+type FunnelAnalyticsProps = {
+  onBack: () => void;
+};
+
+function FunnelAnalytics({ onBack }: FunnelAnalyticsProps) {
+  const maxStageCount = Math.max(...funnelAnalyticsStages.map((stage) => stage.count));
+
+  return (
+    <main className="funnel-analytics-shell">
+      <button className="prototype-back" type="button" onClick={onBack}>
+        Назад к вариантам
+      </button>
+
+      <header className="fa-header">
+        <div>
+          <p className="fa-eyebrow">Funnel Analytics</p>
+          <h1>Аналитика воронки подбора</h1>
+          <p>
+            Где теряются кандидаты, какие этапы тормозят процесс и какие источники дают лучшую
+            конверсию.
+          </p>
+        </div>
+      </header>
+
+      <section className="fa-filter-bar" aria-label="Визуальные фильтры Funnel Analytics">
+        <button type="button">Все направления</button>
+        <button type="button">IT</button>
+        <button type="button">Продукт</button>
+        <button type="button">Аналитика</button>
+        <button type="button">HR</button>
+      </section>
+
+      <section className="fa-kpi-grid" aria-label="Ключевые показатели воронки">
+        {funnelAnalyticsKpis.map((item) => (
+          <article className="fa-kpi-card" key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <p>{item.detail}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="fa-main-grid">
+        <article className="fa-panel fa-funnel-panel">
+          <div className="fa-section-heading">
+            <div>
+              <span>Основная воронка</span>
+              <h2>Воронка подбора</h2>
+            </div>
+            <b>Просадка: технический этап</b>
+          </div>
+
+          <div className="fa-stage-list">
+            {funnelAnalyticsStages.map((stage) => (
+              <article className={`fa-stage-card ${stage.health}`} key={stage.stage}>
+                <div className="fa-stage-top">
+                  <div>
+                    <span>{stage.stage}</span>
+                    <strong>{stage.count}</strong>
+                  </div>
+                  <b>{stage.conversion}</b>
+                </div>
+
+                <div className="fa-stage-track">
+                  <div
+                    className="fa-stage-bar"
+                    style={{ width: `${(stage.count / maxStageCount) * 100}%` }}
+                  />
+                </div>
+
+                <div className="fa-stage-meta">
+                  <span>Потери: {stage.lost}</span>
+                  <span>Среднее время: {stage.averageDays}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <aside className="fa-panel">
+          <div className="fa-section-heading">
+            <div>
+              <span>Диагностика</span>
+              <h2>Узкие места</h2>
+            </div>
+          </div>
+
+          <div className="fa-bottleneck-list">
+            {funnelBottlenecks.map((item) => (
+              <article className="fa-bottleneck-card" key={item.stage}>
+                <div className="fa-bottleneck-top">
+                  <span>{item.stage}</span>
+                  <b>{item.gap}</b>
+                </div>
+                <h3>{item.problem}</h3>
+                <p>{item.reason}</p>
+                <strong>{item.action}</strong>
+              </article>
+            ))}
+          </div>
+        </aside>
+      </section>
+
+      <section className="fa-lower-grid">
+        <article className="fa-panel">
+          <div className="fa-section-heading">
+            <div>
+              <span>Источники</span>
+              <h2>Конверсия по источникам</h2>
+            </div>
+          </div>
+
+          <div className="fa-source-list">
+            {funnelSources.map((source) => (
+              <article className="fa-source-row" key={source.source}>
+                <div>
+                  <h3>{source.source}</h3>
+                  <span>{source.quality} качество</span>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Кандидатов</dt>
+                    <dd>{source.candidates}</dd>
+                  </div>
+                  <div>
+                    <dt>Интервью</dt>
+                    <dd>{source.interviews}</dd>
+                  </div>
+                  <div>
+                    <dt>Офферы</dt>
+                    <dd>{source.offers}</dd>
+                  </div>
+                  <div>
+                    <dt>Конверсия</dt>
+                    <dd>{source.conversion}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <article className="fa-panel">
+          <div className="fa-section-heading">
+            <div>
+              <span>Сегменты</span>
+              <h2>Сравнение сегментов</h2>
+            </div>
+          </div>
+
+          <div className="fa-segment-grid">
+            {funnelSegments.map((segment) => (
+              <article className="fa-segment-card" key={segment.direction}>
+                <div className="fa-segment-top">
+                  <h3>{segment.direction}</h3>
+                  <b>{segment.offerConversion}</b>
+                </div>
+                <div className="fa-segment-metrics">
+                  <span>Входящий поток: {segment.incoming}</span>
+                  <span>До оффера: {segment.averageTimeToOffer}</span>
+                  <span>Проблемный этап: {segment.problemStage}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
   const [selectedPrototype, setSelectedPrototype] = useState<string | null>(null);
   const activePrototype = prototypes.find((prototype) => prototype.id === selectedPrototype);
@@ -1035,6 +1320,10 @@ export default function App() {
 
   if (selectedPrototype === "recruiter-operations") {
     return <RecruiterOperations onBack={() => setSelectedPrototype(null)} />;
+  }
+
+  if (selectedPrototype === "funnel-analytics") {
+    return <FunnelAnalytics onBack={() => setSelectedPrototype(null)} />;
   }
 
   if (activePrototype) {
