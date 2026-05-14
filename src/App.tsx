@@ -347,6 +347,109 @@ const funnelSegments = [
     problemStage: "Оффер"
   }
 ];
+
+const hiringPlanKpis = [
+  { label: "План найма", value: "64", detail: "Выхода на период", tone: "neutral" },
+  { label: "Факт выходов", value: "41", detail: "Уже вышли на работу", tone: "good" },
+  { label: "Осталось закрыть", value: "23", detail: "До выполнения плана", tone: "attention" },
+  { label: "Выполнение плана, %", value: "64%", detail: "Факт к плану", tone: "attention" },
+  { label: "Прогноз выполнения", value: "86%", detail: "При текущем темпе", tone: "risk" },
+  { label: "Вакансии в риске", value: "9", detail: "Влияют на план", tone: "risk" }
+];
+
+const hiringPlanMonths = [
+  { month: "Январь", plan: 8, fact: 8, forecast: 8, deviation: 0 },
+  { month: "Февраль", plan: 9, fact: 10, forecast: 10, deviation: 1 },
+  { month: "Март", plan: 11, fact: 9, forecast: 10, deviation: -2 },
+  { month: "Апрель", plan: 12, fact: 8, forecast: 10, deviation: -4 },
+  { month: "Май", plan: 12, fact: 6, forecast: 9, deviation: -6 },
+  { month: "Июнь", plan: 12, fact: 0, forecast: 8, deviation: -12 }
+];
+
+const hiringPlanDirections = [
+  { direction: "IT", plan: 24, fact: 13, remaining: 11, risk: "Высокий" },
+  { direction: "Продукт", plan: 12, fact: 6, remaining: 6, risk: "Высокий" },
+  { direction: "Аналитика", plan: 10, fact: 8, remaining: 2, risk: "Средний" },
+  { direction: "HR", plan: 6, fact: 5, remaining: 1, risk: "Низкий" },
+  { direction: "Продажи", plan: 12, fact: 9, remaining: 3, risk: "Средний" }
+];
+
+const hiringPlanBlockers = [
+  {
+    reason: "Мало релевантных кандидатов",
+    impact: "Высокое",
+    vacancies: 5,
+    action: "Расширить источники и пересмотреть профиль поиска"
+  },
+  {
+    reason: "Долгий фидбек заказчика",
+    impact: "Высокое",
+    vacancies: 4,
+    action: "Ввести ежедневный контроль фидбека по ключевым ролям"
+  },
+  {
+    reason: "Высокая доля отказов от оффера",
+    impact: "Среднее",
+    vacancies: 3,
+    action: "Проверять ожидания кандидатов до финального этапа"
+  },
+  {
+    reason: "Долгое согласование оффера",
+    impact: "Среднее",
+    vacancies: 2,
+    action: "Ускорить согласование условий с бизнесом"
+  },
+  {
+    reason: "Нет движения по ключевым вакансиям",
+    impact: "Высокое",
+    vacancies: 5,
+    action: "Назначить владельцев и контрольные даты по каждой вакансии"
+  }
+];
+
+const hiringPlanVacancies = [
+  {
+    vacancy: "Senior Backend Developer",
+    direction: "IT",
+    targetDate: "18 июня",
+    status: "Интервью",
+    probability: "55%",
+    riskReason: "Недостаточно кандидатов на финальном этапе"
+  },
+  {
+    vacancy: "Product Manager",
+    direction: "Продукт",
+    targetDate: "21 июня",
+    status: "Финал",
+    probability: "62%",
+    riskReason: "Задержка решения со стороны заказчика"
+  },
+  {
+    vacancy: "Data Analyst",
+    direction: "Аналитика",
+    targetDate: "14 июня",
+    status: "Оффер",
+    probability: "74%",
+    riskReason: "Кандидат сравнивает несколько предложений"
+  },
+  {
+    vacancy: "Sales Lead",
+    direction: "Продажи",
+    targetDate: "25 июня",
+    status: "Скрининг",
+    probability: "48%",
+    riskReason: "Слабый входящий поток релевантных кандидатов"
+  },
+  {
+    vacancy: "HR Business Partner",
+    direction: "HR",
+    targetDate: "12 июня",
+    status: "Финал",
+    probability: "81%",
+    riskReason: "Нужна быстрая фиксация даты выхода"
+  }
+];
+
 type CurrentMvpProps = {
   onBack: () => void;
 };
@@ -532,277 +635,278 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
       </div>
 
       <main className="dashboard">
-        <header className="page-header">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Внутренняя HR-аналитика</p>
+          <h1>Аналитика рекрутмента</h1>
+          <p className="description">
+            Контроль нагрузки, SLA, рисков и результатов команды рекрутинга
+          </p>
+        </div>
+      </header>
+
+      <section className="filters-card card" aria-label="Фильтры дашборда">
+        <div className="filters-heading">
           <div>
-            <p className="eyebrow">Внутренняя HR-аналитика</p>
-            <h1>Аналитика рекрутмента</h1>
-            <p className="description">
-              Контроль нагрузки, SLA, рисков и результатов команды рекрутинга
-            </p>
+            <h2>Фильтры</h2>
+            <span>Срез данных для всех блоков</span>
           </div>
-        </header>
+          <button className="reset-button" type="button" onClick={resetFilters}>
+            Сбросить фильтры
+          </button>
+        </div>
 
-        <section className="filters-card card" aria-label="Фильтры дашборда">
-          <div className="filters-heading">
-            <div>
-              <h2>Фильтры</h2>
-              <span>Срез данных для всех блоков</span>
+        <div className="filters-grid">
+          <label>
+            <span>Департамент</span>
+            <select
+              value={selectedDepartment}
+              onChange={(event) => {
+                setSelectedDepartment(event.target.value);
+                setSelectedTeam("Все отделы");
+              }}
+            >
+              <option>Все департаменты</option>
+              {departments.map((department) => (
+                <option key={department}>{department}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Отдел</span>
+            <select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>
+              <option>Все отделы</option>
+              {availableTeams.map((team) => (
+                <option key={team.name}>{team.name}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Рекрутер</span>
+            <select
+              value={selectedRecruiter}
+              onChange={(event) => setSelectedRecruiter(event.target.value)}
+            >
+              <option>Все рекрутеры</option>
+              {recruiters.map((recruiter) => (
+                <option key={recruiter}>{recruiter}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className="metrics-grid" aria-label="Ключевые метрики">
+        {metrics.map((metric) => (
+          <article className="card metric-card" key={metric.label}>
+            <p>{metric.label}</p>
+            <strong>{metric.value}</strong>
+            <span>{metric.hint}</span>
+          </article>
+        ))}
+      </section>
+
+      <section className="card sla-card">
+        <div className="section-heading">
+          <h2>Сроки и SLA</h2>
+          <span>По выбранным фильтрам</span>
+        </div>
+
+        <div className="sla-summary">
+          {slaSummary.map((item) => (
+            <div key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
             </div>
-            <button className="reset-button" type="button" onClick={resetFilters}>
-              Сбросить фильтры
-            </button>
-          </div>
-
-          <div className="filters-grid">
-            <label>
-              <span>Департамент</span>
-              <select
-                value={selectedDepartment}
-                onChange={(event) => {
-                  setSelectedDepartment(event.target.value);
-                  setSelectedTeam("Все отделы");
-                }}
-              >
-                <option>Все департаменты</option>
-                {departments.map((department) => (
-                  <option key={department}>{department}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span>Отдел</span>
-              <select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>
-                <option>Все отделы</option>
-                {availableTeams.map((team) => (
-                  <option key={team.name}>{team.name}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span>Рекрутер</span>
-              <select
-                value={selectedRecruiter}
-                onChange={(event) => setSelectedRecruiter(event.target.value)}
-              >
-                <option>Все рекрутеры</option>
-                {recruiters.map((recruiter) => (
-                  <option key={recruiter}>{recruiter}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </section>
-
-        <section className="metrics-grid" aria-label="Ключевые метрики">
-          {metrics.map((metric) => (
-            <article className="card metric-card" key={metric.label}>
-              <p>{metric.label}</p>
-              <strong>{metric.value}</strong>
-              <span>{metric.hint}</span>
-            </article>
           ))}
-        </section>
+        </div>
+      </section>
 
-        <section className="card sla-card">
+      <section className="content-grid">
+        <article className="card funnel-card">
           <div className="section-heading">
-            <h2>Сроки и SLA</h2>
-            <span>По выбранным фильтрам</span>
+            <h2>Воронка подбора</h2>
+            <span>С учетом фильтров</span>
           </div>
 
-          <div className="sla-summary">
-            {slaSummary.map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
+          <div className="funnel-list">
+            {funnel.map((item) => (
+              <div className="funnel-row" key={item.stage}>
+                <div className="funnel-label">
+                  <span>{item.stage}</span>
+                  <strong>
+                    {item.count} кандидатов · {item.conversion}
+                  </strong>
+                </div>
+                <div className="funnel-track">
+                  <div
+                    className="funnel-bar"
+                    style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
+                  />
+                </div>
               </div>
             ))}
           </div>
-        </section>
+        </article>
 
-        <section className="content-grid">
-          <article className="card funnel-card">
-            <div className="section-heading">
-              <h2>Воронка подбора</h2>
-              <span>С учетом фильтров</span>
+        <article className="card risks-card">
+          <div className="section-heading">
+            <h2>Риски подбора</h2>
+            <span>По выбранным фильтрам</span>
+          </div>
+
+          <div className="risk-list">
+            {riskyVacancies.length === 0 ? (
+              <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
+            ) : (
+              riskyVacancies.map((risk) => (
+                <div className="risk-item" key={risk.id}>
+                  <div className="risk-header">
+                    <div>
+                      <span className="risk-label">Вакансия</span>
+                      <strong className="risk-title">{risk.title}</strong>
+                    </div>
+                    <b className={`risk-level ${risk.riskLevel}`}>{risk.riskLevelLabel}</b>
+                  </div>
+
+                  <div className="risk-details">
+                    <p>
+                      <span>Рекрутер</span>
+                      {risk.recruiter}
+                    </p>
+                    <p>
+                      <span>Причина риска</span>
+                      {risk.riskReason}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className="analytics-grid">
+        <article className="card analytics-card">
+          <div className="section-heading">
+            <h2>Источники подбора</h2>
+            <span>По выбранным фильтрам</span>
+          </div>
+
+          <div className="summary-row">
+            <div>
+              <span>Всего кандидатов</span>
+              <strong>{filteredCandidates.length}</strong>
             </div>
+            <div>
+              <span>По рекомендациям</span>
+              <strong>{referralCandidates}</strong>
+            </div>
+          </div>
 
-            <div className="funnel-list">
-              {funnel.map((item) => (
-                <div className="funnel-row" key={item.stage}>
-                  <div className="funnel-label">
-                    <span>{item.stage}</span>
+          <div className="breakdown-list">
+            {sourceDistribution.length === 0 ? (
+              <p className="empty-state">Кандидатов по выбранным фильтрам нет.</p>
+            ) : (
+              sourceDistribution.map((item) => (
+                <div className="breakdown-item" key={item.source}>
+                  <div className="breakdown-label">
+                    <span>{item.source}</span>
                     <strong>
-                      {item.count} кандидатов · {item.conversion}
+                      {item.count} · {item.share}
                     </strong>
                   </div>
                   <div className="funnel-track">
                     <div
                       className="funnel-bar"
-                      style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
+                      style={{
+                        width: `${(item.count / Math.max(filteredCandidates.length, 1)) * 100}%`
+                      }}
                     />
                   </div>
                 </div>
-              ))}
-            </div>
-          </article>
+              ))
+            )}
+          </div>
+        </article>
 
-          <article className="card risks-card">
-            <div className="section-heading">
-              <h2>Риски подбора</h2>
-              <span>По выбранным фильтрам</span>
-            </div>
-
-            <div className="risk-list">
-              {riskyVacancies.length === 0 ? (
-                <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
-              ) : (
-                riskyVacancies.map((risk) => (
-                  <div className="risk-item" key={risk.id}>
-                    <div className="risk-header">
-                      <div>
-                        <span className="risk-label">Вакансия</span>
-                        <strong className="risk-title">{risk.title}</strong>
-                      </div>
-                      <b className={`risk-level ${risk.riskLevel}`}>{risk.riskLevelLabel}</b>
-                    </div>
-
-                    <div className="risk-details">
-                      <p>
-                        <span>Рекрутер</span>
-                        {risk.recruiter}
-                      </p>
-                      <p>
-                        <span>Причина риска</span>
-                        {risk.riskReason}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </article>
-        </section>
-        <section className="analytics-grid">
-          <article className="card analytics-card">
-            <div className="section-heading">
-              <h2>Источники подбора</h2>
-              <span>По выбранным фильтрам</span>
-            </div>
-
-            <div className="summary-row">
-              <div>
-                <span>Всего кандидатов</span>
-                <strong>{filteredCandidates.length}</strong>
-              </div>
-              <div>
-                <span>По рекомендациям</span>
-                <strong>{referralCandidates}</strong>
-              </div>
-            </div>
-
-            <div className="breakdown-list">
-              {sourceDistribution.length === 0 ? (
-                <p className="empty-state">Кандидатов по выбранным фильтрам нет.</p>
-              ) : (
-                sourceDistribution.map((item) => (
-                  <div className="breakdown-item" key={item.source}>
-                    <div className="breakdown-label">
-                      <span>{item.source}</span>
-                      <strong>
-                        {item.count} · {item.share}
-                      </strong>
-                    </div>
-                    <div className="funnel-track">
-                      <div
-                        className="funnel-bar"
-                        style={{
-                          width: `${(item.count / Math.max(filteredCandidates.length, 1)) * 100}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </article>
-
-          <article className="card analytics-card">
-            <div className="section-heading">
-              <h2>Офферы</h2>
-              <span>Статусы и причины отказов</span>
-            </div>
-
-            <div className="summary-row">
-              <div>
-                <span>Всего офферов</span>
-                <strong>{filteredOffers.length}</strong>
-              </div>
-              <div>
-                <span>Принятые офферы</span>
-                <strong>{acceptedOffers.length}</strong>
-              </div>
-              <div>
-                <span>Конверсия</span>
-                <strong>{percent(acceptedOffers.length, filteredOffers.length)}</strong>
-              </div>
-            </div>
-
-            <div className="breakdown-list">
-              {declineReasons.length === 0 ? (
-                <p className="empty-state">Отказов по выбранным фильтрам нет.</p>
-              ) : (
-                declineReasons.map((item) => (
-                  <div className="reason-item" key={item.reason}>
-                    <span>{item.reason}</span>
-                    <strong>
-                      {item.count} · {item.share}
-                    </strong>
-                  </div>
-                ))
-              )}
-            </div>
-          </article>
-        </section>
-
-        <section className="card table-card">
+        <article className="card analytics-card">
           <div className="section-heading">
-            <h2>Нагрузка рекрутеров</h2>
-            <span>Моковые данные команды</span>
+            <h2>Офферы</h2>
+            <span>Статусы и причины отказов</span>
           </div>
 
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Рекрутер</th>
-                  <th>Вакансии в работе</th>
-                  <th>Закрытые вакансии</th>
-                  <th>% закрытых в срок</th>
-                  <th>Средний срок закрытия</th>
-                  <th>Офферы</th>
-                  <th>Принятые офферы</th>
-                  <th>Конверсия офферов</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recruiterWorkload.map((recruiter) => (
-                  <tr key={recruiter.name}>
-                    <td>{recruiter.name}</td>
-                    <td>{recruiter.activeVacancies}</td>
-                    <td>{recruiter.closedVacancies}</td>
-                    <td>{recruiter.closedOnTime}</td>
-                    <td>{recruiter.averageCloseDays}</td>
-                    <td>{recruiter.offers}</td>
-                    <td>{recruiter.acceptedOffers}</td>
-                    <td>{recruiter.offerConversion}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="summary-row">
+            <div>
+              <span>Всего офферов</span>
+              <strong>{filteredOffers.length}</strong>
+            </div>
+            <div>
+              <span>Принятые офферы</span>
+              <strong>{acceptedOffers.length}</strong>
+            </div>
+            <div>
+              <span>Конверсия</span>
+              <strong>{percent(acceptedOffers.length, filteredOffers.length)}</strong>
+            </div>
           </div>
-        </section>
+
+          <div className="breakdown-list">
+            {declineReasons.length === 0 ? (
+              <p className="empty-state">Отказов по выбранным фильтрам нет.</p>
+            ) : (
+              declineReasons.map((item) => (
+                <div className="reason-item" key={item.reason}>
+                  <span>{item.reason}</span>
+                  <strong>
+                    {item.count} · {item.share}
+                  </strong>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className="card table-card">
+        <div className="section-heading">
+          <h2>Нагрузка рекрутеров</h2>
+          <span>Моковые данные команды</span>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Рекрутер</th>
+                <th>Вакансии в работе</th>
+                <th>Закрытые вакансии</th>
+                <th>% закрытых в срок</th>
+                <th>Средний срок закрытия</th>
+                <th>Офферы</th>
+                <th>Принятые офферы</th>
+                <th>Конверсия офферов</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recruiterWorkload.map((recruiter) => (
+                <tr key={recruiter.name}>
+                  <td>{recruiter.name}</td>
+                  <td>{recruiter.activeVacancies}</td>
+                  <td>{recruiter.closedVacancies}</td>
+                  <td>{recruiter.closedOnTime}</td>
+                  <td>{recruiter.averageCloseDays}</td>
+                  <td>{recruiter.offers}</td>
+                  <td>{recruiter.acceptedOffers}</td>
+                  <td>{recruiter.offerConversion}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
       </main>
     </>
   );
@@ -982,6 +1086,7 @@ function HiringPulse({ onBack }: HiringPulseProps) {
     </main>
   );
 }
+
 type RecruiterOperationsProps = {
   onBack: () => void;
 };
@@ -1306,6 +1411,228 @@ function FunnelAnalytics({ onBack }: FunnelAnalyticsProps) {
   );
 }
 
+type HiringPlanProps = {
+  onBack: () => void;
+};
+
+function HiringPlan({ onBack }: HiringPlanProps) {
+  const maxMonthValue = Math.max(
+    ...hiringPlanMonths.flatMap((item) => [item.plan, item.fact, item.forecast])
+  );
+
+  return (
+    <main className="plan-shell">
+      <button className="prototype-back" type="button" onClick={onBack}>
+        Назад к вариантам
+      </button>
+
+      <header className="plan-header">
+        <div>
+          <p className="plan-eyebrow">Hiring Plan</p>
+          <h1>План-факт найма</h1>
+          <p>
+            Управленческий обзор выполнения плана: сколько закрыто, где есть риск и какие вакансии
+            сильнее всего влияют на прогноз.
+          </p>
+        </div>
+        <div className="plan-forecast-card">
+          <span>Прогноз выполнения</span>
+          <strong>86%</strong>
+          <p>Требуется ускорение по IT и Продукту</p>
+        </div>
+      </header>
+
+      <section className="plan-kpi-grid" aria-label="Ключевые показатели Hiring Plan">
+        {hiringPlanKpis.map((item) => (
+          <article className={`plan-kpi-card ${item.tone}`} key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <p>{item.detail}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="plan-main-grid">
+        <article className="plan-panel">
+          <div className="plan-section-heading">
+            <div>
+              <span>Темп выполнения</span>
+              <h2>План / факт по месяцам</h2>
+            </div>
+            <b>Фокус: май и июнь</b>
+          </div>
+
+          <div className="plan-month-list">
+            {hiringPlanMonths.map((item) => (
+              <article className="plan-month-row" key={item.month}>
+                <div className="plan-month-title">
+                  <h3>{item.month}</h3>
+                  <span className={item.deviation < 0 ? "is-risk" : "is-good"}>
+                    {item.deviation > 0 ? `+${item.deviation}` : item.deviation}
+                  </span>
+                </div>
+                <div className="plan-month-bars">
+                  <div>
+                    <span>План</span>
+                    <div className="plan-track">
+                      <div
+                        className="plan-bar plan"
+                        style={{ width: `${(item.plan / maxMonthValue) * 100}%` }}
+                      />
+                    </div>
+                    <strong>{item.plan}</strong>
+                  </div>
+                  <div>
+                    <span>Факт</span>
+                    <div className="plan-track">
+                      <div
+                        className="plan-bar fact"
+                        style={{ width: `${(item.fact / maxMonthValue) * 100}%` }}
+                      />
+                    </div>
+                    <strong>{item.fact}</strong>
+                  </div>
+                  <div>
+                    <span>Прогноз</span>
+                    <div className="plan-track">
+                      <div
+                        className="plan-bar forecast"
+                        style={{ width: `${(item.forecast / maxMonthValue) * 100}%` }}
+                      />
+                    </div>
+                    <strong>{item.forecast}</strong>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <aside className="plan-panel plan-summary-panel">
+          <div className="plan-section-heading">
+            <div>
+              <span>Вывод</span>
+              <h2>Прогноз</h2>
+            </div>
+          </div>
+
+          <div className="plan-forecast-list">
+            <p>Если текущий темп сохранится, план будет выполнен на 86%.</p>
+            <p>Для выполнения 100% нужно закрыть еще 23 выхода.</p>
+            <p>Основной риск — IT и Продукт.</p>
+            <p>Нужно ускорить фидбек и офферы по ключевым вакансиям.</p>
+          </div>
+        </aside>
+      </section>
+
+      <section className="plan-split-grid">
+        <article className="plan-panel">
+          <div className="plan-section-heading">
+            <div>
+              <span>Направления</span>
+              <h2>План / факт по направлениям</h2>
+            </div>
+          </div>
+
+          <div className="plan-direction-list">
+            {hiringPlanDirections.map((item) => (
+              <article className="plan-direction-card" key={item.direction}>
+                <div>
+                  <h3>{item.direction}</h3>
+                  <span
+                    className={`plan-risk ${
+                      item.risk === "Высокий"
+                        ? "high"
+                        : item.risk === "Средний"
+                          ? "medium"
+                          : "low"
+                    }`}
+                  >
+                    {item.risk}
+                  </span>
+                </div>
+                <dl>
+                  <div>
+                    <dt>План</dt>
+                    <dd>{item.plan}</dd>
+                  </div>
+                  <div>
+                    <dt>Факт</dt>
+                    <dd>{item.fact}</dd>
+                  </div>
+                  <div>
+                    <dt>Осталось</dt>
+                    <dd>{item.remaining}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <article className="plan-panel">
+          <div className="plan-section-heading">
+            <div>
+              <span>Барьеры</span>
+              <h2>Что мешает выполнению плана</h2>
+            </div>
+          </div>
+
+          <div className="plan-blocker-list">
+            {hiringPlanBlockers.map((item) => (
+              <article className="plan-blocker-card" key={item.reason}>
+                <div>
+                  <h3>{item.reason}</h3>
+                  <b>{item.impact}</b>
+                </div>
+                <span>{item.vacancies} вакансий затронуто</span>
+                <p>{item.action}</p>
+              </article>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="plan-panel">
+        <div className="plan-section-heading">
+          <div>
+            <span>Критичные роли</span>
+            <h2>Вакансии, влияющие на план</h2>
+          </div>
+        </div>
+
+        <div className="plan-vacancy-grid">
+          {hiringPlanVacancies.map((item) => (
+            <article className="plan-vacancy-card" key={item.vacancy}>
+              <div className="plan-vacancy-top">
+                <div>
+                  <span>{item.direction}</span>
+                  <h3>{item.vacancy}</h3>
+                </div>
+                <b>{item.probability}</b>
+              </div>
+              <dl>
+                <div>
+                  <dt>Плановая дата закрытия</dt>
+                  <dd>{item.targetDate}</dd>
+                </div>
+                <div>
+                  <dt>Текущий статус</dt>
+                  <dd>{item.status}</dd>
+                </div>
+                <div>
+                  <dt>Причина риска</dt>
+                  <dd>{item.riskReason}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
   const [selectedPrototype, setSelectedPrototype] = useState<string | null>(null);
   const activePrototype = prototypes.find((prototype) => prototype.id === selectedPrototype);
@@ -1324,6 +1651,10 @@ export default function App() {
 
   if (selectedPrototype === "funnel-analytics") {
     return <FunnelAnalytics onBack={() => setSelectedPrototype(null)} />;
+  }
+
+  if (selectedPrototype === "hiring-plan") {
+    return <HiringPlan onBack={() => setSelectedPrototype(null)} />;
   }
 
   if (activePrototype) {
