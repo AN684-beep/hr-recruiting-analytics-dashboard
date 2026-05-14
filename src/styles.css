@@ -2189,4 +2189,39 @@ tbody tr:last-child td {
   .summary-row {
     grid-template-columns: 1fr;
   }
+
+  .risk-carousel {
+  display: grid;
+  gap: 12px;
+}
+
+.risk-carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.risk-carousel-controls button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d8e0eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.risk-carousel-controls button:hover {
+  border-color: #b9c6d8;
+  background: #f8fafc;
+}
+
+.risk-carousel-controls span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
 }
