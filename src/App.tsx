@@ -28,6 +28,11 @@ type Candidate = (typeof mockCandidates)[number];
 type Offer = (typeof mockOffers)[number];
 type Team = (typeof mockTeams)[number];
 
+type DataQualityMetric = {
+  label: string;
+  value: string;
+};
+
 type DashboardData = {
   departments: string[];
   teams: Team[];
@@ -37,6 +42,7 @@ type DashboardData = {
   offers: Offer[];
   funnelStages: string[];
   sourceLabel: string;
+  dataQualitySummary: DataQualityMetric[];
 };
 
 type ExcelRow = Record<string, unknown>;
@@ -49,7 +55,8 @@ const defaultDashboardData: DashboardData = {
   candidates: mockCandidates,
   offers: mockOffers,
   funnelStages: mockFunnelStages,
-  sourceLabel: "Демо-данные"
+  sourceLabel: "Демо-данные",
+  dataQualitySummary: []
 };
 
 const asText = (value: unknown) => {
@@ -181,8 +188,43 @@ const readWorksheet = (workbook: XLSX.WorkBook, sheetName: string) => {
   return XLSX.utils.sheet_to_json<ExcelRow>(sheet, { defval: "" });
 };
 
+const valueFromQualityRows = (rows: ExcelRow[], metric: string) => {
+  const found = rows.find((row) => asText(row.metric) === metric);
+  return asNumber(found?.value);
+};
+
+const formatNumber = (value: number) => Math.round(value).toLocaleString("ru-RU");
+
+const buildDataQualitySummary = (rows: ExcelRow[]): DataQualityMetric[] => {
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const totalVacancies = valueFromQualityRows(rows, "total_vacancies_count");
+  const hhTotalResponses = valueFromQualityRows(rows, "hh_total_responses");
+  const hhMatchedResponses = valueFromQualityRows(rows, "hh_matched_responses");
+  const hfTotalNew = valueFromQualityRows(rows, "hf_total_new_candidates");
+  const hfMatchedNew = valueFromQualityRows(rows, "hf_matched_new_candidates");
+  const loadedFiles = valueFromQualityRows(rows, "loaded_files_count");
+  const errors = valueFromQualityRows(rows, "errors_count");
+
+  return [
+    { label: "Вакансий в Total", value: formatNumber(totalVacancies) },
+    {
+      label: "HH отклики подтянуты",
+      value: `${formatNumber(hhMatchedResponses)} из ${formatNumber(hhTotalResponses)}`
+    },
+    {
+      label: "Huntflow кандидаты подтянуты",
+      value: `${formatNumber(hfMatchedNew)} из ${formatNumber(hfTotalNew)}`
+    },
+    { label: "Файлы загружены", value: `${formatNumber(loadedFiles)} · ошибок ${formatNumber(errors)}` }
+  ];
+};
+
 const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook, fileName: string): DashboardData => {
   const vacancyRows = readWorksheet(workbook, "vacancy_dashboard");
+  const dataQualityRows = readWorksheet(workbook, "data_quality");
 
   if (vacancyRows.length === 0) {
     throw new Error("В файле не найден лист vacancy_dashboard или он пустой");
@@ -273,7 +315,8 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook, fileName: strin
     candidates,
     offers,
     funnelStages: mockFunnelStages,
-    sourceLabel: fileName
+    sourceLabel: fileName,
+    dataQualitySummary: buildDataQualitySummary(dataQualityRows)
   };
 };
 
@@ -716,6 +759,7 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
   const [dashboardData, setDashboardData] = useState<DashboardData>(defaultDashboardData);
   const [uploadStatus, setUploadStatus] = useState("Используются демо-данные");
   const [riskIndex, setRiskIndex] = useState(0);
+  const [showAllRecruiters, setShowAllRecruiters] = useState(false);
 
   const {
     candidates,
@@ -724,7 +768,8 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
     offers,
     recruiters,
     teams,
-    vacancies
+    vacancies,
+    dataQualitySummary
   } = dashboardData;
 
   const handleExcelUpload = async (file: File | undefined) => {
@@ -742,7 +787,9 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
       setSelectedDepartment("Все департаменты");
       setSelectedTeam("Все отделы");
       setSelectedRecruiter("Все рекрутеры");
-      setUploadStatus(`Загружен файл: ${file.name}`);
+      setRiskIndex(0);
+      setShowAllRecruiters(false);
+      setUploadStatus(`Загружен файл: ${file.name} · вакансий: ${nextData.vacancies.length}`);
     } catch (error) {
       console.error(error);
       setUploadStatus(
@@ -757,6 +804,8 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
     setSelectedDepartment("Все департаменты");
     setSelectedTeam("Все отделы");
     setSelectedRecruiter("Все рекрутеры");
+    setRiskIndex(0);
+    setShowAllRecruiters(false);
   };
 
   const availableTeams = useMemo(() => {
@@ -793,17 +842,17 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
   const acceptedOffers = filteredOffers.filter((offer) => offer.status === "accepted");
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
-const currentRisk = riskyVacancies[safeRiskIndex];
+  const currentRisk = riskyVacancies[safeRiskIndex];
 
-const showPreviousRisk = () => {
-  if (riskyVacancies.length === 0) return;
-  setRiskIndex((current) => (current === 0 ? riskyVacancies.length - 1 : current - 1));
-};
+  const showPreviousRisk = () => {
+    if (riskyVacancies.length === 0) return;
+    setRiskIndex((current) => (current === 0 ? riskyVacancies.length - 1 : current - 1));
+  };
 
-const showNextRisk = () => {
-  if (riskyVacancies.length === 0) return;
-  setRiskIndex((current) => (current === riskyVacancies.length - 1 ? 0 : current + 1));
-};
+  const showNextRisk = () => {
+    if (riskyVacancies.length === 0) return;
+    setRiskIndex((current) => (current === riskyVacancies.length - 1 ? 0 : current + 1));
+  };
 
   const metrics = [
     {
@@ -932,6 +981,8 @@ const showNextRisk = () => {
         recruiter.closedVacancies > 0
     );
 
+  const displayedRecruiterWorkload = showAllRecruiters ? recruiterWorkload : recruiterWorkload.slice(0, 10);
+
   return (
     <>
       <div className="current-mvp-back">
@@ -969,6 +1020,18 @@ const showNextRisk = () => {
         </div>
       </section>
 
+
+      {dataQualitySummary.length > 0 && (
+        <section className="data-quality-strip" aria-label="Качество данных">
+          {dataQualitySummary.map((item) => (
+            <article className="data-quality-item" key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </article>
+          ))}
+        </section>
+      )}
+
       <section className="filters-card card" aria-label="Фильтры дашборда">
         <div className="filters-heading">
           <div>
@@ -988,6 +1051,8 @@ const showNextRisk = () => {
               onChange={(event) => {
                 setSelectedDepartment(event.target.value);
                 setSelectedTeam("Все отделы");
+                setRiskIndex(0);
+                setShowAllRecruiters(false);
               }}
             >
               <option>Все департаменты</option>
@@ -999,7 +1064,11 @@ const showNextRisk = () => {
 
           <label>
             <span>Отдел</span>
-            <select value={selectedTeam} onChange={(event) => setSelectedTeam(event.target.value)}>
+            <select value={selectedTeam} onChange={(event) => {
+                setSelectedTeam(event.target.value);
+                setRiskIndex(0);
+                setShowAllRecruiters(false);
+              }}>
               <option>Все отделы</option>
               {availableTeams.map((team) => (
                 <option key={team.name}>{team.name}</option>
@@ -1011,7 +1080,11 @@ const showNextRisk = () => {
             <span>Рекрутер</span>
             <select
               value={selectedRecruiter}
-              onChange={(event) => setSelectedRecruiter(event.target.value)}
+              onChange={(event) => {
+                setSelectedRecruiter(event.target.value);
+                setRiskIndex(0);
+                setShowAllRecruiters(false);
+              }}
             >
               <option>Все рекрутеры</option>
               {recruiters.map((recruiter) => (
@@ -1082,47 +1155,47 @@ const showNextRisk = () => {
           </div>
 
           <div className="risk-carousel">
-  {riskyVacancies.length === 0 || !currentRisk ? (
-    <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
-  ) : (
-    <>
-      <div className="risk-carousel-controls">
-        <button type="button" onClick={showPreviousRisk} aria-label="Предыдущий риск">
-          ←
-        </button>
+            {riskyVacancies.length === 0 || !currentRisk ? (
+              <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
+            ) : (
+              <>
+                <div className="risk-carousel-controls">
+                  <button type="button" onClick={showPreviousRisk} aria-label="Предыдущий риск">
+                    ←
+                  </button>
 
-        <span>
-          {safeRiskIndex + 1} из {riskyVacancies.length}
-        </span>
+                  <span>
+                    {safeRiskIndex + 1} из {riskyVacancies.length}
+                  </span>
 
-        <button type="button" onClick={showNextRisk} aria-label="Следующий риск">
-          →
-        </button>
-      </div>
+                  <button type="button" onClick={showNextRisk} aria-label="Следующий риск">
+                    →
+                  </button>
+                </div>
 
-      <div className="risk-item" key={currentRisk.id}>
-        <div className="risk-header">
-          <div>
-            <span className="risk-label">Вакансия</span>
-            <strong className="risk-title">{currentRisk.title}</strong>
+                <div className="risk-item" key={currentRisk.id}>
+                  <div className="risk-header">
+                    <div>
+                      <span className="risk-label">Вакансия</span>
+                      <strong className="risk-title">{currentRisk.title}</strong>
+                    </div>
+                    <b className={`risk-level ${currentRisk.riskLevel}`}>{currentRisk.riskLevelLabel}</b>
+                  </div>
+
+                  <div className="risk-details">
+                    <p>
+                      <span>Рекрутер</span>
+                      {currentRisk.recruiter}
+                    </p>
+                    <p>
+                      <span>Причина риска</span>
+                      {currentRisk.riskReason}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-          <b className={`risk-level ${currentRisk.riskLevel}`}>{currentRisk.riskLevelLabel}</b>
-        </div>
-
-        <div className="risk-details">
-          <p>
-            <span>Рекрутер</span>
-            {currentRisk.recruiter}
-          </p>
-          <p>
-            <span>Причина риска</span>
-            {currentRisk.riskReason}
-          </p>
-        </div>
-      </div>
-    </>
-  )}
-</div>
         </article>
       </section>
 
@@ -1211,7 +1284,7 @@ const showNextRisk = () => {
       <section className="card table-card">
         <div className="section-heading">
           <h2>Нагрузка рекрутеров</h2>
-          <span>{dashboardData.sourceLabel}</span>
+          <span>{showAllRecruiters ? `Показаны все: ${recruiterWorkload.length}` : `Показано ${displayedRecruiterWorkload.length} из ${recruiterWorkload.length}`}</span>
         </div>
 
         <div className="table-wrap">
@@ -1229,7 +1302,7 @@ const showNextRisk = () => {
               </tr>
             </thead>
             <tbody>
-              {recruiterWorkload.map((recruiter) => (
+              {displayedRecruiterWorkload.map((recruiter) => (
                 <tr key={recruiter.name}>
                   <td>{recruiter.name}</td>
                   <td>{recruiter.activeVacancies}</td>
@@ -1244,6 +1317,14 @@ const showNextRisk = () => {
             </tbody>
           </table>
         </div>
+
+        {recruiterWorkload.length > 10 && (
+          <div className="table-actions">
+            <button type="button" className="reset-button" onClick={() => setShowAllRecruiters((value) => !value)}>
+              {showAllRecruiters ? "Свернуть список" : "Показать всех рекрутеров"}
+            </button>
+          </div>
+        )}
       </section>
       </main>
     </>
