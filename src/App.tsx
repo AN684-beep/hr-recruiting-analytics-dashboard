@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import {
-  candidates,
-  departments,
-  funnelStages,
-  offers,
-  recruiters,
-  teams,
-  vacancies
+  candidates as mockCandidates,
+  departments as mockDepartments,
+  funnelStages as mockFunnelStages,
+  offers as mockOffers,
+  recruiters as mockRecruiters,
+  teams as mockTeams,
+  vacancies as mockVacancies
 } from "./mockData";
 
 const percent = (value: number, total: number) =>
@@ -21,6 +22,260 @@ const groupByCount = <T,>(items: T[], getKey: (item: T) => string) =>
     result[key] = (result[key] || 0) + 1;
     return result;
   }, {});
+
+type Vacancy = (typeof mockVacancies)[number];
+type Candidate = (typeof mockCandidates)[number];
+type Offer = (typeof mockOffers)[number];
+type Team = (typeof mockTeams)[number];
+
+type DashboardData = {
+  departments: string[];
+  teams: Team[];
+  recruiters: string[];
+  vacancies: Vacancy[];
+  candidates: Candidate[];
+  offers: Offer[];
+  funnelStages: string[];
+  sourceLabel: string;
+};
+
+type ExcelRow = Record<string, unknown>;
+
+const defaultDashboardData: DashboardData = {
+  departments: mockDepartments,
+  teams: mockTeams,
+  recruiters: mockRecruiters,
+  vacancies: mockVacancies,
+  candidates: mockCandidates,
+  offers: mockOffers,
+  funnelStages: mockFunnelStages,
+  sourceLabel: "Демо-данные"
+};
+
+const asText = (value: unknown) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value).trim();
+};
+
+const asNumber = (value: unknown) => {
+  if (value === null || value === undefined || value === "") {
+    return 0;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const normalized = String(value).replace(/\s/g, "").replace(",", ".").replace("%", "");
+  const parsed = Number(normalized);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const uniqueNonEmpty = (values: string[]) =>
+  Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+
+const normalizeStatus = (status: string) => {
+  const value = status.toLowerCase();
+
+  if (value.includes("закры") || value.includes("выход")) {
+    return "closed";
+  }
+
+  return "active";
+};
+
+const getRiskInfo = (row: ExcelRow, status: string) => {
+  if (status !== "active") {
+    return { isRisk: false, riskReason: "", riskLevel: "low", riskLevelLabel: "Низкий" };
+  }
+
+  const targetDays = asNumber(row.target_days);
+  const daysInWork = asNumber(row.days_in_work);
+  const hhResponses = asNumber(row.hh_responses);
+  const hfNew = asNumber(row.hf_new);
+
+  if (targetDays > 0 && daysInWork > targetDays) {
+    return {
+      isRisk: true,
+      riskReason: "Просрочен целевой срок закрытия",
+      riskLevel: "high",
+      riskLevelLabel: "Высокий"
+    };
+  }
+
+  if (hhResponses === 0 && hfNew === 0) {
+    return {
+      isRisk: true,
+      riskReason: "Нет входящего потока и кандидатов в воронке",
+      riskLevel: "medium",
+      riskLevelLabel: "Средний"
+    };
+  }
+
+  if (hfNew === 0) {
+    return {
+      isRisk: true,
+      riskReason: "Нет кандидатов в Huntflow по сопоставленной вакансии",
+      riskLevel: "medium",
+      riskLevelLabel: "Средний"
+    };
+  }
+
+  return { isRisk: false, riskReason: "", riskLevel: "low", riskLevelLabel: "Низкий" };
+};
+
+const addRepeatedCandidates = (
+  target: Candidate[],
+  count: number,
+  vacancyId: number,
+  stage: string,
+  source: string,
+  nextCandidateId: { value: number }
+) => {
+  const safeCount = Math.max(0, Math.round(count));
+
+  for (let index = 0; index < safeCount; index += 1) {
+    target.push({
+      id: nextCandidateId.value,
+      vacancyId,
+      stage,
+      source
+    });
+    nextCandidateId.value += 1;
+  }
+};
+
+const addRepeatedOffers = (
+  target: Offer[],
+  count: number,
+  vacancyId: number,
+  status: "accepted" | "declined",
+  rejectReason: string,
+  nextOfferId: { value: number }
+) => {
+  const safeCount = Math.max(0, Math.round(count));
+
+  for (let index = 0; index < safeCount; index += 1) {
+    target.push({
+      id: nextOfferId.value,
+      vacancyId,
+      status,
+      rejectReason,
+      source: "Huntflow"
+    });
+    nextOfferId.value += 1;
+  }
+};
+
+const readWorksheet = (workbook: XLSX.WorkBook, sheetName: string) => {
+  const sheet = workbook.Sheets[sheetName];
+
+  if (!sheet) {
+    return [] as ExcelRow[];
+  }
+
+  return XLSX.utils.sheet_to_json<ExcelRow>(sheet, { defval: "" });
+};
+
+const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook, fileName: string): DashboardData => {
+  const vacancyRows = readWorksheet(workbook, "vacancy_dashboard");
+
+  if (vacancyRows.length === 0) {
+    throw new Error("В файле не найден лист vacancy_dashboard или он пустой");
+  }
+
+  const vacancies: Vacancy[] = [];
+  const candidates: Candidate[] = [];
+  const offers: Offer[] = [];
+  const nextCandidateId = { value: 1 };
+  const nextOfferId = { value: 1 };
+
+  vacancyRows.forEach((row, rowIndex) => {
+    const id = rowIndex + 1;
+    const title = asText(row.total_vacancy_name) || `Вакансия ${id}`;
+    const department = asText(row.department) || "Не указано";
+    const team = asText(row.division) || "Не указано";
+    const recruiter = asText(row.recruiter) || "Не указано";
+    const status = normalizeStatus(asText(row.status));
+    const targetCloseDays = asNumber(row.target_days);
+    const actualCloseDays = asNumber(row.actual_close_days);
+    const daysInWork = asNumber(row.days_in_work);
+    const daysToClose = actualCloseDays || (status === "closed" ? daysInWork : 0);
+    const slaDays = targetCloseDays || asNumber(row.target_days) || 0;
+    const riskInfo = getRiskInfo(row, status);
+
+    vacancies.push({
+      id,
+      title,
+      department,
+      team,
+      recruiter,
+      grade: asText(row.grade) || "Не указано",
+      targetCloseDays,
+      actualCloseDays,
+      gradeTargetDays: targetCloseDays,
+      candidateStartDays: 0,
+      status,
+      daysToClose,
+      slaDays,
+      ...riskInfo
+    });
+
+    const hhResponses = asNumber(row.hh_responses);
+    const hfNew = asNumber(row.hf_new);
+    const recruiterInterviews = asNumber(row.hf_recruiter_interviews);
+    const hmInterviews = asNumber(row.hf_hm_interviews);
+    const techInterviews = asNumber(row.hf_tech_interviews);
+    const finalInterviews = asNumber(row.hf_final_interviews);
+    const jobOffers = asNumber(row.hf_job_offer);
+    const offerAccepted = asNumber(row.hf_offer_accepted);
+
+    const interviewTotal = Math.max(recruiterInterviews, hmInterviews, techInterviews);
+    const finalTotal = Math.max(finalInterviews, Math.min(hmInterviews, interviewTotal));
+    const exitCount = offerAccepted;
+    const offerCount = Math.max(jobOffers - exitCount, 0);
+    const finalCount = Math.max(finalTotal - jobOffers, 0);
+    const interviewCount = Math.max(interviewTotal - finalTotal, 0);
+    const screeningCount = Math.max(hfNew - interviewTotal, 0);
+    const responseOnlyCount = Math.max(hhResponses - hfNew, 0);
+
+    addRepeatedCandidates(candidates, responseOnlyCount, id, "Отклики", "HeadHunter", nextCandidateId);
+    addRepeatedCandidates(candidates, screeningCount, id, "Скрининг", "Huntflow", nextCandidateId);
+    addRepeatedCandidates(candidates, interviewCount, id, "Интервью", "Huntflow", nextCandidateId);
+    addRepeatedCandidates(candidates, finalCount, id, "Финал", "Huntflow", nextCandidateId);
+    addRepeatedCandidates(candidates, offerCount, id, "Оффер", "Huntflow", nextCandidateId);
+    addRepeatedCandidates(candidates, exitCount, id, "Выход", "Huntflow", nextCandidateId);
+
+    addRepeatedOffers(offers, offerAccepted, id, "accepted", "", nextOfferId);
+    addRepeatedOffers(offers, Math.max(jobOffers - offerAccepted, 0), id, "declined", "Оффер не принят", nextOfferId);
+  });
+
+  const departments = uniqueNonEmpty(vacancies.map((vacancy) => vacancy.department));
+  const teams = Array.from(
+    new Map(
+      vacancies.map((vacancy) => [
+        `${vacancy.department}|||${vacancy.team}`,
+        { name: vacancy.team, department: vacancy.department }
+      ])
+    ).values()
+  );
+  const recruiters = uniqueNonEmpty(vacancies.map((vacancy) => vacancy.recruiter));
+
+  return {
+    departments,
+    teams,
+    recruiters,
+    vacancies,
+    candidates,
+    offers,
+    funnelStages: mockFunnelStages,
+    sourceLabel: fileName
+  };
+};
 
 const prototypes = [
   {
@@ -458,6 +713,44 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
   const [selectedDepartment, setSelectedDepartment] = useState("Все департаменты");
   const [selectedTeam, setSelectedTeam] = useState("Все отделы");
   const [selectedRecruiter, setSelectedRecruiter] = useState("Все рекрутеры");
+  const [dashboardData, setDashboardData] = useState<DashboardData>(defaultDashboardData);
+  const [uploadStatus, setUploadStatus] = useState("Используются демо-данные");
+
+  const {
+    candidates,
+    departments,
+    funnelStages,
+    offers,
+    recruiters,
+    teams,
+    vacancies
+  } = dashboardData;
+
+  const handleExcelUpload = async (file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    try {
+      setUploadStatus("Читаю Excel-файл...");
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const nextData = buildDashboardDataFromWorkbook(workbook, file.name);
+
+      setDashboardData(nextData);
+      setSelectedDepartment("Все департаменты");
+      setSelectedTeam("Все отделы");
+      setSelectedRecruiter("Все рекрутеры");
+      setUploadStatus(`Загружен файл: ${file.name}`);
+    } catch (error) {
+      console.error(error);
+      setUploadStatus(
+        error instanceof Error
+          ? `Не удалось загрузить Excel: ${error.message}`
+          : "Не удалось загрузить Excel"
+      );
+    }
+  };
 
   const resetFilters = () => {
     setSelectedDepartment("Все департаменты");
@@ -471,7 +764,7 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
     }
 
     return teams.filter((team) => team.department === selectedDepartment);
-  }, [selectedDepartment]);
+  }, [selectedDepartment, teams]);
 
   const filteredVacancies = useMemo(
     () =>
@@ -484,7 +777,7 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
 
         return departmentMatch && teamMatch && recruiterMatch;
       }),
-    [selectedDepartment, selectedTeam, selectedRecruiter]
+    [selectedDepartment, selectedTeam, selectedRecruiter, vacancies]
   );
 
   const filteredVacancyIds = filteredVacancies.map((vacancy) => vacancy.id);
@@ -644,6 +937,24 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
           </p>
         </div>
       </header>
+
+      <section className="filters-card card" aria-label="Загрузка Excel">
+        <div className="filters-heading">
+          <div>
+            <h2>Данные</h2>
+            <span>{uploadStatus}</span>
+          </div>
+          <label className="reset-button" style={{ cursor: "pointer" }}>
+            Загрузить Excel
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: "none" }}
+              onChange={(event) => handleExcelUpload(event.target.files?.[0])}
+            />
+          </label>
+        </div>
+      </section>
 
       <section className="filters-card card" aria-label="Фильтры дашборда">
         <div className="filters-heading">
@@ -873,7 +1184,7 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
       <section className="card table-card">
         <div className="section-heading">
           <h2>Нагрузка рекрутеров</h2>
-          <span>Моковые данные команды</span>
+          <span>{dashboardData.sourceLabel}</span>
         </div>
 
         <div className="table-wrap">
