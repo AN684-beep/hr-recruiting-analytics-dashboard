@@ -715,6 +715,7 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
   const [selectedRecruiter, setSelectedRecruiter] = useState("Все рекрутеры");
   const [dashboardData, setDashboardData] = useState<DashboardData>(defaultDashboardData);
   const [uploadStatus, setUploadStatus] = useState("Используются демо-данные");
+  const [riskIndex, setRiskIndex] = useState(0);
 
   const {
     candidates,
@@ -791,6 +792,18 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
   const closedOnTime = closedVacancies.filter((vacancy) => vacancy.daysToClose <= vacancy.slaDays);
   const acceptedOffers = filteredOffers.filter((offer) => offer.status === "accepted");
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
+  const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
+const currentRisk = riskyVacancies[safeRiskIndex];
+
+const showPreviousRisk = () => {
+  if (riskyVacancies.length === 0) return;
+  setRiskIndex((current) => (current === 0 ? riskyVacancies.length - 1 : current - 1));
+};
+
+const showNextRisk = () => {
+  if (riskyVacancies.length === 0) return;
+  setRiskIndex((current) => (current === riskyVacancies.length - 1 ? 0 : current + 1));
+};
 
   const metrics = [
     {
@@ -1068,34 +1081,48 @@ function CurrentMvp({ onBack }: CurrentMvpProps) {
             <span>По выбранным фильтрам</span>
           </div>
 
-          <div className="risk-list">
-            {riskyVacancies.length === 0 ? (
-              <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
-            ) : (
-              riskyVacancies.map((risk) => (
-                <div className="risk-item" key={risk.id}>
-                  <div className="risk-header">
-                    <div>
-                      <span className="risk-label">Вакансия</span>
-                      <strong className="risk-title">{risk.title}</strong>
-                    </div>
-                    <b className={`risk-level ${risk.riskLevel}`}>{risk.riskLevelLabel}</b>
-                  </div>
+          <div className="risk-carousel">
+  {riskyVacancies.length === 0 || !currentRisk ? (
+    <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
+  ) : (
+    <>
+      <div className="risk-carousel-controls">
+        <button type="button" onClick={showPreviousRisk} aria-label="Предыдущий риск">
+          ←
+        </button>
 
-                  <div className="risk-details">
-                    <p>
-                      <span>Рекрутер</span>
-                      {risk.recruiter}
-                    </p>
-                    <p>
-                      <span>Причина риска</span>
-                      {risk.riskReason}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
+        <span>
+          {safeRiskIndex + 1} из {riskyVacancies.length}
+        </span>
+
+        <button type="button" onClick={showNextRisk} aria-label="Следующий риск">
+          →
+        </button>
+      </div>
+
+      <div className="risk-item" key={currentRisk.id}>
+        <div className="risk-header">
+          <div>
+            <span className="risk-label">Вакансия</span>
+            <strong className="risk-title">{currentRisk.title}</strong>
           </div>
+          <b className={`risk-level ${currentRisk.riskLevel}`}>{currentRisk.riskLevelLabel}</b>
+        </div>
+
+        <div className="risk-details">
+          <p>
+            <span>Рекрутер</span>
+            {currentRisk.recruiter}
+          </p>
+          <p>
+            <span>Причина риска</span>
+            {currentRisk.riskReason}
+          </p>
+        </div>
+      </div>
+    </>
+  )}
+</div>
         </article>
       </section>
 
