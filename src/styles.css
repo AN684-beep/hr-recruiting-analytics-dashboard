@@ -2034,6 +2034,41 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
+.timing-card {
+  margin-bottom: 16px;
+}
+
+.compact-table-wrap table {
+  min-width: 1180px;
+}
+
+.timing-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.timing-status.on-time {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.timing-status.late {
+  color: #b42318;
+  background: #fee4e2;
+}
+
+.timing-status.unknown {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
 @media (max-width: 900px) {
   .plan-kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
