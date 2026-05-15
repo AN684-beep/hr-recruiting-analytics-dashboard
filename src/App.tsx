@@ -4,6 +4,9 @@ import * as XLSX from "xlsx";
 const percent = (value: number, total: number) =>
   total === 0 ? "0%" : `${Math.round((value / total) * 100)}%`;
 
+const percentOneDecimal = (value: number, total: number) =>
+  total === 0 ? "0%" : `${((value / total) * 100).toFixed(1)}%`;
+
 const average = (values: number[]) =>
   values.length === 0 ? 0 : Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 
@@ -132,6 +135,16 @@ const asNumber = (value: unknown) => {
   const parsed = Number(normalized);
 
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const asValidDays = (value: unknown) => {
+  const parsed = asNumber(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 1000) {
+    return 0;
+  }
+
+  return Math.round(parsed);
 };
 
 const uniqueNonEmpty = (values: string[]) =>
@@ -369,9 +382,12 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     const team = asText(row.division) || "Не указано";
     const recruiter = asText(row.recruiter) || "Не указано";
     const status = normalizeStatus(asText(row.status));
-    const targetCloseDays = asNumber(row.target_days);
-    const actualCloseDays = asNumber(row.actual_close_days);
-    const daysInWork = asNumber(row.days_in_work);
+    const targetCloseDays =
+      asValidDays(row.target_days) ||
+      asValidDays(row.target_close_days) ||
+      asValidDays(row.target_sla_days);
+    const actualCloseDays = asValidDays(row.actual_close_days) || asValidDays(row.days_to_close);
+    const daysInWork = asValidDays(row.days_in_work);
     const daysToClose = actualCloseDays || (status === "closed" ? daysInWork : 0);
     const slaDays = targetCloseDays || asNumber(row.target_days) || 0;
     const riskInfo = getRiskInfo(row, status);
@@ -488,6 +504,7 @@ function CurrentMvp({
   const [selectedRecruiter, setSelectedRecruiter] = useState(DEFAULT_RECRUITER);
   const [riskIndex, setRiskIndex] = useState(0);
   const [showAllRecruiters, setShowAllRecruiters] = useState(false);
+  const [showAllTimingRows, setShowAllTimingRows] = useState(false);
 
   const {
     candidates,
@@ -507,6 +524,7 @@ function CurrentMvp({
     setSelectedRecruiter(DEFAULT_RECRUITER);
     setRiskIndex(0);
     setShowAllRecruiters(false);
+    setShowAllTimingRows(false);
   };
 
   const availableTeams = useMemo(() => {
@@ -539,7 +557,9 @@ function CurrentMvp({
 
   const activeVacancies = filteredVacancies.filter((vacancy) => vacancy.status === "active");
   const closedVacancies = filteredVacancies.filter((vacancy) => vacancy.status === "closed");
-  const closedOnTime = closedVacancies.filter((vacancy) => vacancy.daysToClose <= vacancy.slaDays);
+  const closedOnTime = closedVacancies.filter(
+    (vacancy) => vacancy.slaDays > 0 && vacancy.daysToClose > 0 && vacancy.daysToClose <= vacancy.slaDays
+  );
   const acceptedOffers = filteredOffers.filter((offer) => offer.status === "accepted");
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
@@ -559,32 +579,32 @@ function CurrentMvp({
     {
       label: "Вакансии в работе",
       value: activeVacancies.length,
-      hint: "Открытые позиции"
+      hint: "Активные позиции"
     },
     {
-      label: "Закрытые вакансии",
+      label: "Закрыто вакансий",
       value: closedVacancies.length,
       hint: "Завершенные поиски"
     },
     {
-      label: "% закрытых в срок",
-      value: percent(closedOnTime.length, closedVacancies.length),
-      hint: "По SLA вакансий"
+      label: "Всего офферов",
+      value: filteredOffers.length,
+      hint: "Job offer из воронки"
     },
     {
-      label: "Принятые офферы",
+      label: "Принято офферов",
       value: acceptedOffers.length,
-      hint: "Офферы со статусом принят"
+      hint: "Offer accepted"
     },
     {
-      label: "Конверсия офферов",
-      value: percent(acceptedOffers.length, filteredOffers.length),
-      hint: "Принятые от всех офферов"
+      label: "Acceptance rate",
+      value: percentOneDecimal(acceptedOffers.length, filteredOffers.length),
+      hint: "Принято от всех офферов"
     },
     {
-      label: "Средний срок закрытия",
-      value: `${average(closedVacancies.map((vacancy) => vacancy.daysToClose))} дн.`,
-      hint: "По закрытым вакансиям"
+      label: "Закрыто в срок, %",
+      value: percentOneDecimal(closedOnTime.length, closedVacancies.length),
+      hint: "По целевому сроку"
     }
   ];
 
@@ -652,6 +672,32 @@ function CurrentMvp({
     }
   ];
 
+  const timingRows = filteredVacancies.map((vacancy) => {
+    const targetDays = asValidDays(vacancy.targetCloseDays || vacancy.slaDays);
+    const actualDays = asValidDays(
+      vacancy.status === "closed"
+        ? vacancy.actualCloseDays || vacancy.daysToClose
+        : vacancy.daysToClose || vacancy.actualCloseDays
+    );
+    const hasTimingData = targetDays > 0 && actualDays > 0;
+    const deviation = hasTimingData ? actualDays - targetDays : 0;
+
+    return {
+      id: vacancy.id,
+      title: vacancy.title,
+      recruiter: vacancy.recruiter,
+      department: vacancy.department,
+      team: vacancy.team,
+      grade: vacancy.grade,
+      targetDays,
+      actualDays,
+      deviation,
+      status: hasTimingData ? (actualDays <= targetDays ? "В срок" : "С опозданием") : "Нет данных"
+    };
+  });
+
+  const visibleTimingRows = showAllTimingRows ? timingRows : timingRows.slice(0, 10);
+
   const recruiterWorkload = recruiters
     .map((recruiter) => {
       const recruiterVacancies = filteredVacancies.filter((vacancy) => vacancy.recruiter === recruiter);
@@ -684,7 +730,7 @@ function CurrentMvp({
         recruiter.closedVacancies > 0
     );
 
-  const displayedRecruiterWorkload = showAllRecruiters ? recruiterWorkload : recruiterWorkload.slice(0, 10);
+  const displayedRecruiterWorkload = showAllRecruiters ? recruiterWorkload : recruiterWorkload.slice(0, 5);
 
   return (
     <main className="dashboard">
@@ -760,6 +806,7 @@ function CurrentMvp({
                 setSelectedTeam(DEFAULT_TEAM);
                 setRiskIndex(0);
                 setShowAllRecruiters(false);
+                setShowAllTimingRows(false);
               }}
             >
               <option>{DEFAULT_DEPARTMENT}</option>
@@ -775,6 +822,7 @@ function CurrentMvp({
                 setSelectedTeam(event.target.value);
                 setRiskIndex(0);
                 setShowAllRecruiters(false);
+                setShowAllTimingRows(false);
               }}>
               <option>{DEFAULT_TEAM}</option>
               {availableTeams.map((team) => (
@@ -791,6 +839,7 @@ function CurrentMvp({
                 setSelectedRecruiter(event.target.value);
                 setRiskIndex(0);
                 setShowAllRecruiters(false);
+                setShowAllTimingRows(false);
               }}
             >
               <option>{DEFAULT_RECRUITER}</option>
@@ -992,6 +1041,60 @@ function CurrentMvp({
         </article>
       </section>
 
+      <section className="card table-card timing-card">
+        <div className="section-heading">
+          <h2>Срок и скорость закрытия</h2>
+          <span>{showAllTimingRows ? `Показаны все: ${timingRows.length}` : `Показано ${visibleTimingRows.length} из ${timingRows.length}`}</span>
+        </div>
+
+        <div className="table-wrap compact-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Вакансия</th>
+                <th>Рекрутер</th>
+                <th>Департамент</th>
+                <th>Отдел</th>
+                <th>Грейд</th>
+                <th>Целевой срок</th>
+                <th>Фактический срок</th>
+                <th>Отклонение</th>
+                <th>Статус срока</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleTimingRows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.title}</td>
+                  <td>{row.recruiter}</td>
+                  <td>{row.department}</td>
+                  <td>{row.team}</td>
+                  <td>{row.grade}</td>
+                  <td>{row.targetDays > 0 ? `${row.targetDays} дн.` : "Нет данных"}</td>
+                  <td>{row.actualDays > 0 ? `${row.actualDays} дн.` : "Нет данных"}</td>
+                  <td>{row.status === "Нет данных" ? "Нет данных" : `${row.deviation > 0 ? "+" : ""}${row.deviation} дн.`}</td>
+                  <td>
+                    <span className={`timing-status ${row.status === "В срок" ? "on-time" : row.status === "С опозданием" ? "late" : "unknown"}`}>
+                      {row.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {timingRows.length === 0 && <p className="empty-state">Загрузите Excel, чтобы увидеть данные.</p>}
+
+        {timingRows.length > 10 && (
+          <div className="table-actions">
+            <button type="button" className="reset-button" onClick={() => setShowAllTimingRows((value) => !value)}>
+              {showAllTimingRows ? "Скрыть" : "Показать еще"}
+            </button>
+          </div>
+        )}
+      </section>
+
       <section className="card table-card">
         <div className="section-heading">
           <h2>Нагрузка рекрутеров</h2>
@@ -1029,10 +1132,10 @@ function CurrentMvp({
           </table>
         </div>
 
-        {recruiterWorkload.length > 10 && (
+        {recruiterWorkload.length > 5 && (
           <div className="table-actions">
             <button type="button" className="reset-button" onClick={() => setShowAllRecruiters((value) => !value)}>
-              {showAllRecruiters ? "Свернуть список" : "Показать всех рекрутеров"}
+              {showAllRecruiters ? "Скрыть" : "Показать еще"}
             </button>
           </div>
         )}
