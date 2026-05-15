@@ -77,6 +77,12 @@ type SourceSummaryItem = {
   rejections: number;
 };
 
+type SourceByVacancyItem = {
+  vacancy: string;
+  source: string;
+  count: number;
+};
+
 type DashboardData = {
   departments: string[];
   teams: Team[];
@@ -85,16 +91,9 @@ type DashboardData = {
   candidates: Candidate[];
   offers: Offer[];
   funnelStages: string[];
-  sourceSummary: SourceSummaryItem[];
-  sourceLabel: string;
-  dataQualitySummary: DataQualityMetric[];
+  sourcesSummary: SourceSummaryItem[];
+  sourcesByVacancy: SourceByVacancyItem[];
+  dataQuality: DataQualityMetric[];
 };
 
 type ExcelRow = Record<string, unknown>;
-
-const defaultDashboardData: DashboardData = {
-  departments: [],
-  teams: [],
-  recruiters: [],
-  vacancies: [],
-  candidates: [],
