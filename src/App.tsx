@@ -20,8 +20,17 @@ const groupByCount = <T,>(items: T[], getKey: (item: T) => string) =>
 const DEFAULT_DEPARTMENT = "Все департаменты";
 const DEFAULT_TEAM = "Все отделы";
 const DEFAULT_RECRUITER = "Все рекрутеры";
+const DEFAULT_STATUS = "Все статусы";
 const DEFAULT_FUNNEL_STAGES = ["Отклики", "Скрининг", "Интервью", "Финал", "Оффер", "Выход"];
 const SHOW_DIAGNOSTICS = false;
+const STATUS_FILTERS = [
+  DEFAULT_STATUS,
+  "В работе",
+  "Пауза",
+  "Заморозка",
+  "Ждём выхода",
+  "Закрыта"
+];
 
 type Vacancy = {
   id: number;
@@ -35,6 +44,7 @@ type Vacancy = {
   gradeTargetDays: number;
   candidateStartDays: number;
   status: string;
+  daysInWork: number;
   daysToClose: number;
   slaDays: number;
   isRisk: boolean;
@@ -282,9 +292,45 @@ const normalizeStatus = (status: string) => {
   return "unknown";
 };
 
-const isClosedStatus = (status: string) => ["closed", "cancelled"].includes(status);
+const isClosedStatus = (status: string) => status === "closed";
 
 const isActiveStatus = (status: string) => ["active", "unknown"].includes(status);
+
+const statusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    active: "В работе",
+    paused: "Пауза",
+    frozen: "Заморозка",
+    waiting_start: "Ждём выхода",
+    closed: "Закрыта",
+    cancelled: "Отменена",
+    unknown: "Не указан"
+  };
+
+  return labels[status] || "Не указан";
+};
+
+const statusClassName = (status: string) => {
+  const classes: Record<string, string> = {
+    active: "active",
+    paused: "paused",
+    frozen: "frozen",
+    waiting_start: "waiting-start",
+    closed: "closed",
+    cancelled: "cancelled",
+    unknown: "unknown"
+  };
+
+  return classes[status] || "unknown";
+};
+
+const statusMatchesFilter = (status: string, filter: string) => {
+  if (filter === DEFAULT_STATUS) {
+    return true;
+  }
+
+  return statusLabel(status) === filter;
+};
 
 const getRiskInfo = (row: ExcelRow, status: string) => {
   if (status !== "active") {
@@ -514,6 +560,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       gradeTargetDays: targetCloseDays,
       candidateStartDays: 0,
       status,
+      daysInWork,
       daysToClose,
       slaDays,
       ...riskInfo
@@ -662,6 +709,7 @@ function DiagnosticsBlock({ activePrototype, isLoaded, data }: DiagnosticsBlockP
 type CurrentMvpProps = {
   dashboardData: DashboardData;
   uploadedFileName: string;
+  uploadedAt: string;
   isExcelLoaded: boolean;
   uploadStatus: string;
   onExcelUpload: (file: File | undefined) => void;
@@ -670,6 +718,7 @@ type CurrentMvpProps = {
 function CurrentMvp({
   dashboardData,
   uploadedFileName,
+  uploadedAt,
   isExcelLoaded,
   uploadStatus,
   onExcelUpload
@@ -677,6 +726,7 @@ function CurrentMvp({
   const [selectedDepartment, setSelectedDepartment] = useState(DEFAULT_DEPARTMENT);
   const [selectedTeam, setSelectedTeam] = useState(DEFAULT_TEAM);
   const [selectedRecruiter, setSelectedRecruiter] = useState(DEFAULT_RECRUITER);
+  const [selectedStatus, setSelectedStatus] = useState(DEFAULT_STATUS);
   const [riskIndex, setRiskIndex] = useState(0);
   const [showAllRecruiters, setShowAllRecruiters] = useState(false);
   const [showAllTimingRows, setShowAllTimingRows] = useState(false);
@@ -699,6 +749,7 @@ function CurrentMvp({
     setSelectedDepartment(DEFAULT_DEPARTMENT);
     setSelectedTeam(DEFAULT_TEAM);
     setSelectedRecruiter(DEFAULT_RECRUITER);
+    setSelectedStatus(DEFAULT_STATUS);
     setRiskIndex(0);
     setShowAllRecruiters(false);
     setShowAllTimingRows(false);
@@ -720,10 +771,11 @@ function CurrentMvp({
         const teamMatch = selectedTeam === DEFAULT_TEAM || vacancy.team === selectedTeam;
         const recruiterMatch =
           selectedRecruiter === DEFAULT_RECRUITER || vacancy.recruiter === selectedRecruiter;
+        const statusMatch = statusMatchesFilter(vacancy.status, selectedStatus);
 
-        return departmentMatch && teamMatch && recruiterMatch;
+        return departmentMatch && teamMatch && recruiterMatch && statusMatch;
       }),
-    [selectedDepartment, selectedTeam, selectedRecruiter, vacancies]
+    [selectedDepartment, selectedTeam, selectedRecruiter, selectedStatus, vacancies]
   );
 
   const filteredVacancyIds = filteredVacancies.map((vacancy) => vacancy.id);
@@ -734,6 +786,11 @@ function CurrentMvp({
 
   const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
   const closedVacancies = filteredVacancies.filter((vacancy) => isClosedStatus(vacancy.status));
+  const allActiveVacancies = vacancies.filter((vacancy) => isActiveStatus(vacancy.status));
+  const allPausedVacancies = vacancies.filter((vacancy) => vacancy.status === "paused");
+  const allFrozenVacancies = vacancies.filter((vacancy) => vacancy.status === "frozen");
+  const allWaitingStartVacancies = vacancies.filter((vacancy) => vacancy.status === "waiting_start");
+  const allClosedVacancies = vacancies.filter((vacancy) => isClosedStatus(vacancy.status));
   const closedOnTime = closedVacancies.filter(
     (vacancy) => vacancy.slaDays > 0 && vacancy.daysToClose > 0 && vacancy.daysToClose <= vacancy.slaDays
   );
@@ -752,14 +809,57 @@ function CurrentMvp({
     setRiskIndex((current) => (current === riskyVacancies.length - 1 ? 0 : current + 1));
   };
 
+  const dataQualityText = dataQuality.find((item) => item.label === "Качество данных")?.value || "";
+  const errorsCount = Number(dataQualityText.match(/ошибок\s+(\d+)/i)?.[1] || 0);
+  const warningCount = Number(dataQualityText.match(/предупреждений\s+(\d+)/i)?.[1] || reviewIssues.length);
+
+  const topKpis = [
+    {
+      label: "Всего вакансий",
+      value: vacancies.length,
+      hint: "из Total",
+      tone: "neutral"
+    },
+    {
+      label: "В работе",
+      value: allActiveVacancies.length,
+      hint: "активные позиции",
+      tone: "active"
+    },
+    {
+      label: "Пауза / заморозка",
+      value: allPausedVacancies.length + allFrozenVacancies.length,
+      hint: `${allPausedVacancies.length} пауза · ${allFrozenVacancies.length} заморозка`,
+      tone: "paused"
+    },
+    {
+      label: "Ждём выхода",
+      value: allWaitingStartVacancies.length,
+      hint: "оффер принят, выход впереди",
+      tone: "waiting"
+    },
+    {
+      label: "Закрыто",
+      value: allClosedVacancies.length,
+      hint: "завершенные поиски",
+      tone: "closed"
+    },
+    {
+      label: "Качество данных",
+      value: errorsCount === 0 ? "ОК" : "Есть ошибки",
+      hint: `warning: ${warningCount}`,
+      tone: errorsCount === 0 ? "quality" : "warning"
+    }
+  ];
+
   const metrics = [
     {
-      label: "Вакансии в работе",
+      label: "В работе",
       value: activeVacancies.length,
       hint: "Активные позиции"
     },
     {
-      label: "Закрыто вакансий",
+      label: "Закрыто",
       value: closedVacancies.length,
       hint: "Завершенные поиски"
     },
@@ -816,10 +916,6 @@ function CurrentMvp({
     }))
     .sort((first, second) => second.count - first.count);
 
-  const referralCandidates = sourceDistribution
-    .filter((item) => item.source.toLowerCase().includes("рекомендац"))
-    .reduce((sum, item) => sum + item.count, 0);
-
   const declinedOffers = filteredOffers.filter((offer) => offer.status === "declined");
   const declineReasons = Object.entries(groupByCount(declinedOffers, (offer) => offer.rejectReason))
     .map(([reason, count]) => ({
@@ -854,7 +950,7 @@ function CurrentMvp({
     const actualDays = asValidDays(
       vacancy.status === "closed"
         ? vacancy.actualCloseDays || vacancy.daysToClose
-        : vacancy.daysToClose || vacancy.actualCloseDays
+        : vacancy.daysInWork || vacancy.daysToClose || vacancy.actualCloseDays
     );
     const hasTimingData = targetDays > 0 && actualDays > 0;
     const deviation = hasTimingData ? actualDays - targetDays : 0;
@@ -863,6 +959,7 @@ function CurrentMvp({
       id: vacancy.id,
       title: vacancy.title,
       recruiter: vacancy.recruiter,
+      vacancyStatus: vacancy.status,
       department: vacancy.department,
       team: vacancy.team,
       grade: vacancy.grade,
@@ -895,88 +992,57 @@ function CurrentMvp({
   const displayedRecruiterWorkload = showAllRecruiters ? recruiterWorkload : recruiterWorkload.slice(0, 5);
 
   return (
-    <main className="dashboard">
-      <header className="page-header">
-        <div>
+    <main className="dashboard dashboard-shell">
+      <header className="dashboard-header header-card">
+        <div className="header-copy">
           <p className="eyebrow">Внутренняя HR-аналитика</p>
           <h1>Аналитика рекрутмента</h1>
-          <p className="description">
-            Контроль нагрузки, SLA, рисков и результатов команды рекрутинга
-          </p>
+          <p className="description">Контроль вакансий, воронки, SLA и нагрузки команды</p>
         </div>
-      </header>
 
-      <section className="filters-card card" aria-label="Загрузка Excel">
-        <div className="filters-heading">
-          <div>
-            <h2>Данные</h2>
-            <span>
-              {isExcelLoaded && uploadedFileName
-                ? `Загружен файл: ${uploadedFileName}`
-                : uploadStatus}
-            </span>
+        <div className="upload-card" aria-label="Загрузка Excel">
+          <div className="upload-status">
+            <span className={`status-dot ${isExcelLoaded ? "loaded" : ""}`} />
+            <div>
+              <strong>{isExcelLoaded ? "Данные загружены" : "Данные не загружены"}</strong>
+              <span>{isExcelLoaded && uploadedFileName ? uploadedFileName : uploadStatus}</span>
+              {uploadedAt && <small>{uploadedAt}</small>}
+            </div>
           </div>
-          <label className="reset-button" style={{ cursor: "pointer" }}>
-            Загрузить Excel для Current MVP
+
+          <label className="upload-button">
+            Загрузить Excel
             <input
               type="file"
               accept=".xlsx,.xls"
-              style={{ display: "none" }}
               onChange={(event) => onExcelUpload(event.target.files?.[0])}
             />
           </label>
         </div>
-      </section>
+      </header>
 
-
-      <section className="data-quality-strip" aria-label="Качество данных">
-        {dataQuality.length === 0 ? (
-          <article className="data-quality-item data-quality-empty">
-            <span>Качество данных</span>
-            <strong>Данные не загружены</strong>
+      <section className="kpi-grid" aria-label="Главные показатели">
+        {topKpis.map((metric) => (
+          <article className={`kpi-card ${metric.tone}`} key={metric.label}>
+            <span className="kpi-label">{metric.label}</span>
+            <strong className="kpi-value">{metric.value}</strong>
+            <span className="kpi-subtext">{metric.hint}</span>
           </article>
-        ) : (
-          dataQuality.map((item) => (
-            <article className="data-quality-item" key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))
-        )}
-      </section>
-
-      <section className="card table-card">
-        <div className="section-heading">
-          <h2>Проверка данных</h2>
-          <span>Только warning и critical из листа review</span>
-        </div>
-
-        {reviewIssues.length === 0 ? (
-          <p className="empty-state">Критичных проблем нет.</p>
-        ) : (
-          <div className="breakdown-list">
-            {reviewIssues.slice(0, 6).map((issue, index) => (
-              <div className="reason-item" key={`${issue.issueType}-${issue.vacancy}-${index}`}>
-                <span>{issue.issueType} · {issue.vacancy}</span>
-                <strong>{issue.reason || issue.severity}</strong>
-              </div>
-            ))}
-          </div>
-        )}
+        ))}
       </section>
 
       {SHOW_DIAGNOSTICS && (
         <DiagnosticsBlock activePrototype="Current MVP" isLoaded={isExcelLoaded} data={dashboardData} />
       )}
 
-      <section className="filters-card card" aria-label="Фильтры дашборда">
-        <div className="filters-heading">
+      <section className="filters-card section-card" aria-label="Фильтры дашборда">
+        <div className="section-heading compact">
           <div>
             <h2>Фильтры</h2>
             <span>Срез данных для всех блоков</span>
           </div>
-          <button className="reset-button" type="button" onClick={resetFilters}>
-            Сбросить фильтры
+          <button className="secondary-button" type="button" onClick={resetFilters}>
+            Сбросить
           </button>
         </div>
 
@@ -1002,12 +1068,15 @@ function CurrentMvp({
 
           <label>
             <span>Отдел</span>
-            <select value={selectedTeam} onChange={(event) => {
+            <select
+              value={selectedTeam}
+              onChange={(event) => {
                 setSelectedTeam(event.target.value);
                 setRiskIndex(0);
                 setShowAllRecruiters(false);
                 setShowAllTimingRows(false);
-              }}>
+              }}
+            >
               <option>{DEFAULT_TEAM}</option>
               {availableTeams.map((team) => (
                 <option key={team.name}>{team.name}</option>
@@ -1032,278 +1101,326 @@ function CurrentMvp({
               ))}
             </select>
           </label>
+
+          <label>
+            <span>Статус</span>
+            <select
+              value={selectedStatus}
+              onChange={(event) => {
+                setSelectedStatus(event.target.value);
+                setRiskIndex(0);
+                setShowAllRecruiters(false);
+                setShowAllTimingRows(false);
+              }}
+            >
+              {STATUS_FILTERS.map((status) => (
+                <option key={status}>{status}</option>
+              ))}
+            </select>
+          </label>
         </div>
       </section>
 
-      <section className="metrics-grid" aria-label="Ключевые метрики">
-        {metrics.map((metric) => (
-          <article className="card metric-card" key={metric.label}>
-            <p>{metric.label}</p>
-            <strong>{metric.value}</strong>
-            <span>{metric.hint}</span>
-          </article>
-        ))}
-      </section>
-
-      <section className="card sla-card">
-        <div className="section-heading">
-          <h2>Сроки и SLA</h2>
-          <span>По выбранным фильтрам</span>
+      <section className="section-card selected-summary">
+        <div className="section-heading compact">
+          <div>
+            <h2>Сводка по выбранным фильтрам</h2>
+            <span>{filteredVacancies.length} вакансий в текущем срезе</span>
+          </div>
         </div>
 
-        <div className="sla-summary">
-          {slaSummary.map((item) => (
-            <div key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </div>
+        <div className="summary-metrics-grid">
+          {metrics.map((metric) => (
+            <article className="summary-metric" key={metric.label}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+              <small>{metric.hint}</small>
+            </article>
           ))}
         </div>
       </section>
 
-      <section className="content-grid">
-        <article className="card funnel-card">
-          <div className="section-heading">
-            <h2>Воронка подбора</h2>
-            <span>С учетом фильтров</span>
-          </div>
-
-          <div className="funnel-list">
-            {funnel.map((item) => (
-              <div className="funnel-row" key={item.stage}>
-                <div className="funnel-label">
-                  <span>{item.stage}</span>
-                  <strong>
-                    {item.count} кандидатов · {item.conversion}
-                  </strong>
-                </div>
-                <div className="funnel-track">
-                  <div
-                    className="funnel-bar"
-                    style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
-                  />
-                </div>
+      <section className="two-column-layout">
+        <div className="main-column">
+          <article className="section-card funnel-card">
+            <div className="section-heading">
+              <div>
+                <h2>Воронка подбора</h2>
+                <span>С учетом фильтров</span>
               </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="card risks-card">
-          <div className="section-heading">
-            <h2>Риски подбора</h2>
-            <span>По выбранным фильтрам</span>
-          </div>
-
-          <div className="risk-carousel">
-            {riskyVacancies.length === 0 || !currentRisk ? (
-              <p className="empty-state">Рисков по выбранным фильтрам нет.</p>
-            ) : (
-              <>
-                <div className="risk-carousel-controls">
-                  <button type="button" onClick={showPreviousRisk} aria-label="Предыдущий риск">
-                    ←
-                  </button>
-
-                  <span>
-                    {safeRiskIndex + 1} из {riskyVacancies.length}
-                  </span>
-
-                  <button type="button" onClick={showNextRisk} aria-label="Следующий риск">
-                    →
-                  </button>
-                </div>
-
-                <div className="risk-item" key={currentRisk.id}>
-                  <div className="risk-header">
-                    <div>
-                      <span className="risk-label">Вакансия</span>
-                      <strong className="risk-title">{currentRisk.title}</strong>
-                    </div>
-                    <b className={`risk-level ${currentRisk.riskLevel}`}>{currentRisk.riskLevelLabel}</b>
-                  </div>
-
-                  <div className="risk-details">
-                    <p>
-                      <span>Рекрутер</span>
-                      {currentRisk.recruiter}
-                    </p>
-                    <p>
-                      <span>Причина риска</span>
-                      {currentRisk.riskReason}
-                    </p>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </article>
-      </section>
-
-      <section className="analytics-grid">
-        <article className="card analytics-card">
-          <div className="section-heading">
-            <h2>Источники подбора</h2>
-            <span>По выбранным фильтрам</span>
-          </div>
-
-          <div className="summary-row">
-            <div>
-              <span>Всего кандидатов</span>
-              <strong>{sourceTotal}</strong>
             </div>
-            <div>
-              <span>По рекомендациям</span>
-              <strong>{referralCandidates}</strong>
-            </div>
-          </div>
 
-          <div className="breakdown-list">
-            {sourceDistribution.length === 0 ? (
-              <p className="empty-state">Источники подбора не загружены.</p>
-            ) : (
-              sourceDistribution.map((item) => (
-                <div className="breakdown-item" key={item.source}>
-                  <div className="breakdown-label">
-                    <span>{item.source}</span>
-                    <strong>
-                      {item.count} · {item.share}
-                    </strong>
+            <div className="funnel-list">
+              {funnel.map((item) => (
+                <div className="funnel-row" key={item.stage}>
+                  <div className="funnel-label">
+                    <span>{item.stage}</span>
+                    <strong>{item.count}</strong>
+                    <small>{item.conversion}</small>
                   </div>
                   <div className="funnel-track">
                     <div
                       className="funnel-bar"
-                      style={{
-                        width: `${(item.count / Math.max(sourceTotal, 1)) * 100}%`
-                      }}
+                      style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
                     />
                   </div>
-                  <div className="source-extra">
-                    <span>Офферы: {item.offers}</span>
-                    <span>Принятые: {item.acceptedOffers}</span>
-                  </div>
                 </div>
-              ))
-            )}
-          </div>
-        </article>
-
-        <article className="card analytics-card">
-          <div className="section-heading">
-            <h2>Офферы</h2>
-            <span>Статусы и причины отказов</span>
-          </div>
-
-          <div className="summary-row">
-            <div>
-              <span>Всего офферов</span>
-              <strong>{filteredOffers.length}</strong>
-            </div>
-            <div>
-              <span>Принятые офферы</span>
-              <strong>{acceptedOffers.length}</strong>
-            </div>
-            <div>
-              <span>Конверсия</span>
-              <strong>{percent(acceptedOffers.length, filteredOffers.length)}</strong>
-            </div>
-          </div>
-
-          <div className="breakdown-list">
-            {declineReasons.length === 0 ? (
-              <p className="empty-state">Отказов по выбранным фильтрам нет.</p>
-            ) : (
-              declineReasons.map((item) => (
-                <div className="reason-item" key={item.reason}>
-                  <span>{item.reason}</span>
-                  <strong>
-                    {item.count} · {item.share}
-                  </strong>
-                </div>
-              ))
-            )}
-          </div>
-        </article>
-      </section>
-
-      <section className="card table-card timing-card">
-        <div className="section-heading">
-          <h2>Срок и скорость закрытия</h2>
-          <span>{showAllTimingRows ? `Показаны все: ${timingRows.length}` : `Показано ${visibleTimingRows.length} из ${timingRows.length}`}</span>
-        </div>
-
-        <div className="table-wrap compact-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Вакансия</th>
-                <th>Рекрутер</th>
-                <th>Департамент</th>
-                <th>Отдел</th>
-                <th>Грейд</th>
-                <th>Целевой срок</th>
-                <th>Фактический срок</th>
-                <th>Отклонение</th>
-                <th>Статус срока</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleTimingRows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.title}</td>
-                  <td>{row.recruiter}</td>
-                  <td>{row.department}</td>
-                  <td>{row.team}</td>
-                  <td>{row.grade}</td>
-                  <td>{row.targetDays > 0 ? `${row.targetDays} дн.` : "Нет данных"}</td>
-                  <td>{row.actualDays > 0 ? `${row.actualDays} дн.` : "Нет данных"}</td>
-                  <td>{row.status === "Нет данных" ? "Нет данных" : `${row.deviation > 0 ? "+" : ""}${row.deviation} дн.`}</td>
-                  <td>
-                    <span className={`timing-status ${row.status === "В срок" ? "on-time" : row.status === "С опозданием" ? "late" : "unknown"}`}>
-                      {row.status}
-                    </span>
-                  </td>
-                </tr>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </article>
+
+          <article className="section-card sla-card">
+            <div className="section-heading">
+              <div>
+                <h2>Сроки и SLA</h2>
+                <span>По выбранным фильтрам</span>
+              </div>
+            </div>
+
+            <div className="sla-summary">
+              {slaSummary.map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="section-card table-card timing-card">
+            <div className="section-heading">
+              <div>
+                <h2>Срок и скорость закрытия</h2>
+                <span>{showAllTimingRows ? `Показаны все: ${timingRows.length}` : `Показано ${visibleTimingRows.length} из ${timingRows.length}`}</span>
+              </div>
+            </div>
+
+            <div className="table-wrap compact-table-wrap">
+              <table className="vacancies-table">
+                <thead>
+                  <tr>
+                    <th>Вакансия</th>
+                    <th>Рекрутер</th>
+                    <th>Статус</th>
+                    <th>Департамент</th>
+                    <th>Целевой срок</th>
+                    <th>Дней в работе</th>
+                    <th>SLA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleTimingRows.map((row) => (
+                    <tr key={row.id}>
+                      <td className="primary-cell">{row.title}</td>
+                      <td>{row.recruiter}</td>
+                      <td>
+                        <span className={`status-badge ${statusClassName(row.vacancyStatus)}`}>
+                          {statusLabel(row.vacancyStatus)}
+                        </span>
+                      </td>
+                      <td>{row.department}</td>
+                      <td>{row.targetDays > 0 ? `${row.targetDays} дн.` : "Нет данных"}</td>
+                      <td>{row.actualDays > 0 ? `${row.actualDays} дн.` : "Нет данных"}</td>
+                      <td>
+                        <span className={`timing-status ${row.status === "В срок" ? "on-time" : row.status === "С опозданием" ? "late" : "unknown"}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {timingRows.length === 0 && <p className="empty-state">Загрузите Excel, чтобы увидеть данные.</p>}
+
+            {timingRows.length > 10 && (
+              <div className="table-actions">
+                <button type="button" className="secondary-button" onClick={() => setShowAllTimingRows((value) => !value)}>
+                  {showAllTimingRows ? "Скрыть" : "Показать еще"}
+                </button>
+              </div>
+            )}
+          </article>
         </div>
 
-        {timingRows.length === 0 && <p className="empty-state">Загрузите Excel, чтобы увидеть данные.</p>}
+        <aside className="side-column">
+          <article className={`data-quality-alert section-card ${reviewIssues.length === 0 ? "success" : "warning"}`}>
+            <div className="alert-heading">
+              <div>
+                <h2>{reviewIssues.length === 0 ? "Критичных проблем нет" : "Нужна проверка"}</h2>
+                <span>{reviewIssues.length === 0 ? "warning и critical не найдены" : `${reviewIssues.length} warning`}</span>
+              </div>
+            </div>
 
-        {timingRows.length > 10 && (
-          <div className="table-actions">
-            <button type="button" className="reset-button" onClick={() => setShowAllTimingRows((value) => !value)}>
-              {showAllTimingRows ? "Скрыть" : "Показать еще"}
-            </button>
-          </div>
-        )}
+            {reviewIssues.length === 0 ? (
+              <p>Данные готовы к работе.</p>
+            ) : (
+              <div className="review-list">
+                {reviewIssues.slice(0, 4).map((issue, index) => (
+                  <div className="review-item" key={`${issue.issueType}-${issue.vacancy}-${index}`}>
+                    <strong>{issue.vacancy}</strong>
+                    <span>{issue.reason || issue.issueType}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="section-card risks-card">
+            <div className="section-heading">
+              <div>
+                <h2>Риски подбора</h2>
+                <span>Только активные вакансии</span>
+              </div>
+            </div>
+
+            <div className="risk-carousel">
+              {riskyVacancies.length === 0 || !currentRisk ? (
+                <div className="empty-state">
+                  <strong>По выбранным фильтрам рисков нет</strong>
+                  <span>Риски считаются только по активным вакансиям.</span>
+                </div>
+              ) : (
+                <>
+                  <div className="risk-carousel-controls">
+                    <button type="button" onClick={showPreviousRisk} aria-label="Предыдущий риск">
+                      ←
+                    </button>
+
+                    <span>
+                      {safeRiskIndex + 1} из {riskyVacancies.length}
+                    </span>
+
+                    <button type="button" onClick={showNextRisk} aria-label="Следующий риск">
+                      →
+                    </button>
+                  </div>
+
+                  <div className="risk-item" key={currentRisk.id}>
+                    <div className="risk-header">
+                      <div>
+                        <span className="risk-label">Вакансия</span>
+                        <strong className="risk-title">{currentRisk.title}</strong>
+                      </div>
+                      <b className={`risk-level ${currentRisk.riskLevel}`}>{currentRisk.riskLevelLabel}</b>
+                    </div>
+
+                    <div className="risk-details">
+                      <p>
+                        <span>Рекрутер</span>
+                        {currentRisk.recruiter}
+                      </p>
+                      <p>
+                        <span>Причина риска</span>
+                        {currentRisk.riskReason}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </article>
+
+          <article className="section-card offers-card">
+            <div className="section-heading">
+              <div>
+                <h2>Офферы</h2>
+                <span>Статусы и отказы</span>
+              </div>
+            </div>
+
+            <div className="offer-summary">
+              <div>
+                <span>Всего</span>
+                <strong>{filteredOffers.length}</strong>
+              </div>
+              <div>
+                <span>Принято</span>
+                <strong>{acceptedOffers.length}</strong>
+              </div>
+              <div>
+                <span>Конверсия</span>
+                <strong>{percent(acceptedOffers.length, filteredOffers.length)}</strong>
+              </div>
+            </div>
+
+            <div className="breakdown-list">
+              {declineReasons.length === 0 ? (
+                <p className="empty-state compact">Отказов по выбранным фильтрам нет.</p>
+              ) : (
+                declineReasons.slice(0, 4).map((item) => (
+                  <div className="reason-item" key={item.reason}>
+                    <span>{item.reason}</span>
+                    <strong>
+                      {item.count} · {item.share}
+                    </strong>
+                  </div>
+                ))
+              )}
+            </div>
+          </article>
+
+          {sourceDistribution.length > 0 && (
+            <article className="section-card sources-card">
+              <div className="section-heading">
+                <div>
+                  <h2>Источники подбора</h2>
+                  <span>Из Excel, если доступны</span>
+                </div>
+              </div>
+
+              <div className="source-list">
+                {sourceDistribution.slice(0, 5).map((item) => (
+                  <div className="source-row" key={item.source}>
+                    <div>
+                      <span>{item.source}</span>
+                      <strong>{item.count}</strong>
+                    </div>
+                    <div className="funnel-track">
+                      <div
+                        className="funnel-bar"
+                        style={{
+                          width: `${(item.count / Math.max(sourceTotal, 1)) * 100}%`
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          )}
+        </aside>
       </section>
 
-      <section className="card table-card">
+      <section className="section-card table-card recruiter-card">
         <div className="section-heading">
-          <h2>Нагрузка рекрутеров</h2>
-          <span>{showAllRecruiters ? `Показаны все: ${recruiterWorkload.length}` : `Показано ${displayedRecruiterWorkload.length} из ${recruiterWorkload.length}`}</span>
+          <div>
+            <h2>Нагрузка рекрутеров</h2>
+            <span>{showAllRecruiters ? `Показаны все: ${recruiterWorkload.length}` : `Показано ${displayedRecruiterWorkload.length} из ${recruiterWorkload.length}`}</span>
+          </div>
         </div>
 
         <div className="table-wrap">
-          <table>
+          <table className="recruiter-table">
             <thead>
               <tr>
                 <th>Рекрутер</th>
-                <th>Вакансии в работе</th>
-                <th>Пауза / заморозка</th>
-                <th>Закрытые вакансии</th>
+                <th>Активные</th>
+                <th>Пауза/заморозка</th>
+                <th>Закрытые</th>
                 <th>HF новые</th>
-                <th>HF интервью НМ</th>
+                <th>HF интервью</th>
                 <th>HF офферы</th>
                 <th>HF принятые</th>
                 <th>HH отклики</th>
+                <th>HH стоимость отклика</th>
               </tr>
             </thead>
             <tbody>
               {displayedRecruiterWorkload.map((recruiter) => (
                 <tr key={recruiter.name}>
-                  <td>{recruiter.name}</td>
+                  <td className="primary-cell">{recruiter.name}</td>
                   <td>{recruiter.activeVacancies}</td>
                   <td>{recruiter.pausedVacancies} / {recruiter.frozenVacancies}</td>
                   <td>{recruiter.closedVacancies}</td>
@@ -1312,16 +1429,19 @@ function CurrentMvp({
                   <td>{recruiter.hfJobOffer}</td>
                   <td>{recruiter.hfOfferAccepted}</td>
                   <td>{recruiter.hhResponses}</td>
+                  <td>{recruiter.hhResponseCost > 0 ? `${formatNumber(recruiter.hhResponseCost)} ₽` : "0 ₽"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
+        {recruiterWorkload.length === 0 && <p className="empty-state">Загрузите Excel, чтобы увидеть нагрузку рекрутеров.</p>}
+
         {recruiterWorkload.length > 5 && (
           <div className="table-actions">
-            <button type="button" className="reset-button" onClick={() => setShowAllRecruiters((value) => !value)}>
-              {showAllRecruiters ? "Скрыть" : "Показать еще"}
+            <button type="button" className="secondary-button" onClick={() => setShowAllRecruiters((value) => !value)}>
+              {showAllRecruiters ? "Скрыть" : "Показать всех"}
             </button>
           </div>
         )}
@@ -1333,6 +1453,7 @@ function CurrentMvp({
 export default function App() {
   const [dashboardData, setDashboardData] = useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [uploadedFileName, setUploadedFileName] = useState("");
+  const [uploadedAt, setUploadedAt] = useState("");
   const [isExcelLoaded, setIsExcelLoaded] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("Загрузите dashboard_data.xlsx, чтобы увидеть данные");
 
@@ -1349,12 +1470,14 @@ export default function App() {
 
       setDashboardData(nextData);
       setUploadedFileName(file.name);
+      setUploadedAt(new Date().toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }));
       setIsExcelLoaded(true);
       setUploadStatus(`Загружен файл: ${file.name} · вакансий: ${nextData.vacancies.length}`);
     } catch (error) {
       console.error(error);
       setDashboardData(EMPTY_DASHBOARD_DATA);
       setUploadedFileName("");
+      setUploadedAt("");
       setIsExcelLoaded(false);
       setUploadStatus(
         error instanceof Error
@@ -1368,6 +1491,7 @@ export default function App() {
     <CurrentMvp
       dashboardData={dashboardData}
       uploadedFileName={uploadedFileName}
+      uploadedAt={uploadedAt}
       isExcelLoaded={isExcelLoaded}
       uploadStatus={uploadStatus}
       onExcelUpload={handleExcelUpload}
