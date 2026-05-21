@@ -864,19 +864,19 @@ function CurrentMvp({
       hint: "Завершенные поиски"
     },
     {
-      label: "Всего офферов",
+      label: "Офферы по вакансиям",
       value: filteredOffers.length,
-      hint: "Job offer из воронки"
+      hint: "По выбранным вакансиям"
     },
     {
-      label: "Принято офферов",
+      label: "Принято по вакансиям",
       value: acceptedOffers.length,
-      hint: "Offer accepted"
+      hint: "По выбранным вакансиям"
     },
     {
-      label: "Acceptance rate",
+      label: "Принятие офферов",
       value: percentOneDecimal(acceptedOffers.length, filteredOffers.length),
-      hint: "Принято от всех офферов"
+      hint: "По выбранным вакансиям"
     },
     {
       label: "Закрыто в срок, %",
@@ -1397,7 +1397,10 @@ function CurrentMvp({
         <div className="section-heading">
           <div>
             <h2>Нагрузка рекрутеров</h2>
-            <span>{showAllRecruiters ? `Показаны все: ${recruiterWorkload.length}` : `Показано ${displayedRecruiterWorkload.length} из ${recruiterWorkload.length}`}</span>
+            <span>
+              По полной воронке Huntflow за период ·{" "}
+              {showAllRecruiters ? `показаны все: ${recruiterWorkload.length}` : `показано ${displayedRecruiterWorkload.length} из ${recruiterWorkload.length}`}
+            </span>
           </div>
         </div>
 
@@ -1413,6 +1416,7 @@ function CurrentMvp({
                 <th>HF интервью</th>
                 <th>HF офферы</th>
                 <th>HF принятые</th>
+                <th>Принятие офферов</th>
                 <th>HH отклики</th>
                 <th>HH стоимость отклика</th>
               </tr>
@@ -1428,6 +1432,7 @@ function CurrentMvp({
                   <td>{recruiter.hfHiringManagerInterview}</td>
                   <td>{recruiter.hfJobOffer}</td>
                   <td>{recruiter.hfOfferAccepted}</td>
+                  <td>{recruiter.hfJobOffer > 0 ? percentOneDecimal(recruiter.hfOfferAccepted, recruiter.hfJobOffer) : "—"}</td>
                   <td>{recruiter.hhResponses}</td>
                   <td>{recruiter.hhResponseCost > 0 ? `${formatNumber(recruiter.hhResponseCost)} ₽` : "0 ₽"}</td>
                 </tr>
