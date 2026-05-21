@@ -86,6 +86,36 @@ type SourceByVacancyItem = {
   count: number;
 };
 
+type RecruiterWorkloadItem = {
+  name: string;
+  canonical: string;
+  activeVacancies: number;
+  pausedVacancies: number;
+  frozenVacancies: number;
+  waitingStartVacancies: number;
+  closedVacancies: number;
+  allVacancies: number;
+  hfNew: number;
+  hfMessages: number;
+  hfRecruiterInterview: number;
+  hfHiringManagerInterview: number;
+  hfFinalInterview: number;
+  hfJobOffer: number;
+  hfOfferAccepted: number;
+  hfRejected: number;
+  hhResponses: number;
+  hhInvitationsFromResponses: number;
+  hhPublicationCost: number;
+  hhResponseCost: number;
+};
+
+type ReviewIssue = {
+  severity: string;
+  issueType: string;
+  vacancy: string;
+  reason: string;
+};
+
 type DashboardData = {
   departments: string[];
   teams: Team[];
@@ -97,6 +127,8 @@ type DashboardData = {
   sourcesSummary: SourceSummaryItem[];
   sourcesByVacancy: SourceByVacancyItem[];
   dataQuality: DataQualityMetric[];
+  recruiterWorkload: RecruiterWorkloadItem[];
+  reviewIssues: ReviewIssue[];
 };
 
 type ExcelRow = Record<string, unknown>;
@@ -111,7 +143,9 @@ const EMPTY_DASHBOARD_DATA: DashboardData = {
   funnelStages: [],
   sourcesSummary: [],
   sourcesByVacancy: [],
-  dataQuality: []
+  dataQuality: [],
+  recruiterWorkload: [],
+  reviewIssues: []
 };
 
 const asText = (value: unknown) => {
@@ -147,6 +181,37 @@ const asValidDays = (value: unknown) => {
   return Math.round(parsed);
 };
 
+const asDate = (value: unknown) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const excelEpoch = Date.UTC(1899, 11, 30);
+    return new Date(excelEpoch + value * 24 * 60 * 60 * 1000);
+  }
+
+  const text = asText(value);
+  if (!text) {
+    return null;
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const daysBetween = (start: unknown, end: unknown) => {
+  const startDate = asDate(start);
+  const endDate = asDate(end);
+
+  if (!startDate || !endDate) {
+    return 0;
+  }
+
+  const diff = Math.round((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
+  return asValidDays(diff);
+};
+
 const uniqueNonEmpty = (values: string[]) =>
   Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 
@@ -170,22 +235,50 @@ const isBusinessCandidateSource = (source: string) => {
 const normalizeStatus = (status: string) => {
   const value = status.toLowerCase();
 
-  if (value.includes("закры") || value.includes("выход")) {
+  if (["active", "paused", "frozen", "waiting_start", "closed", "cancelled", "unknown"].includes(value)) {
+    return value;
+  }
+
+  if (value.includes("ждем выхода") || value.includes("ждём выхода")) {
+    return "waiting_start";
+  }
+
+  if (value.includes("заморож")) {
+    return "frozen";
+  }
+
+  if (value.includes("пауза")) {
+    return "paused";
+  }
+
+  if (value.includes("отмен")) {
+    return "cancelled";
+  }
+
+  if (value.includes("закры")) {
     return "closed";
   }
 
-  return "active";
+  if (value.includes("работ") || value.includes("open") || value.includes("откры")) {
+    return "active";
+  }
+
+  return "unknown";
 };
+
+const isClosedStatus = (status: string) => ["closed", "cancelled"].includes(status);
+
+const isActiveStatus = (status: string) => ["active", "unknown"].includes(status);
 
 const getRiskInfo = (row: ExcelRow, status: string) => {
   if (status !== "active") {
     return { isRisk: false, riskReason: "", riskLevel: "low", riskLevelLabel: "Низкий" };
   }
 
-  const targetDays = asNumber(row.target_days);
-  const daysInWork = asNumber(row.days_in_work);
-  const hhResponses = asNumber(row.hh_responses);
+  const targetDays = asNumber(row.target_days_total);
+  const daysInWork = asNumber(row.days_in_work_total);
   const hfNew = asNumber(row.hf_new);
+  const hfMatchStatus = asText(row.hf_match_status).toLowerCase();
 
   if (targetDays > 0 && daysInWork > targetDays) {
     return {
@@ -196,10 +289,10 @@ const getRiskInfo = (row: ExcelRow, status: string) => {
     };
   }
 
-  if (hhResponses === 0 && hfNew === 0) {
+  if (hfMatchStatus !== "matched") {
     return {
       isRisk: true,
-      riskReason: "Нет входящего потока и кандидатов в воронке",
+      riskReason: "Вакансия не сопоставлена с Huntflow",
       riskLevel: "medium",
       riskLevelLabel: "Средний"
     };
@@ -330,36 +423,36 @@ const buildDataQualitySummary = (rows: ExcelRow[]): DataQualityMetric[] => {
   }
 
   const totalVacancies = valueFromQualityRows(rows, "total_vacancies_count");
-  const hhTotalResponses = valueFromQualityRows(rows, "hh_total_responses");
-  const hhMatchedResponses = valueFromQualityRows(rows, "hh_matched_responses");
-  const hfTotalNew = valueFromQualityRows(rows, "hf_total_new_candidates");
-  const hfMatchedNew = valueFromQualityRows(rows, "hf_matched_new_candidates");
-  const loadedFiles = valueFromQualityRows(rows, "loaded_files_count");
+  const active = valueFromQualityRows(rows, "total_active_vacancies_count");
+  const paused = valueFromQualityRows(rows, "total_paused_vacancies_count");
+  const frozen = valueFromQualityRows(rows, "total_frozen_vacancies_count");
+  const hfNew = valueFromQualityRows(rows, "recruiter_funnel_total_new");
+  const hfOfferAccepted = valueFromQualityRows(rows, "recruiter_funnel_total_offer_accepted");
   const errors = valueFromQualityRows(rows, "errors_count");
+  const warnings = valueFromQualityRows(rows, "review_warning_count");
 
   return [
     { label: "Вакансий в Total", value: formatNumber(totalVacancies) },
     {
-      label: "HH отклики подтянуты",
-      value: `${formatNumber(hhMatchedResponses)} из ${formatNumber(hhTotalResponses)}`
+      label: "Активные / пауза / заморозка",
+      value: `${formatNumber(active)} / ${formatNumber(paused)} / ${formatNumber(frozen)}`
     },
     {
-      label: "Huntflow кандидаты подтянуты",
-      value: `${formatNumber(hfMatchedNew)} из ${formatNumber(hfTotalNew)}`
+      label: "Huntflow кандидаты / офферы",
+      value: `${formatNumber(hfNew)} / ${formatNumber(hfOfferAccepted)}`
     },
-    { label: "Файлы загружены", value: `${formatNumber(loadedFiles)} · ошибок ${formatNumber(errors)}` }
+    { label: "Качество данных", value: `ошибок ${formatNumber(errors)} · предупреждений ${formatNumber(warnings)}` }
   ];
 };
 
 const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData => {
-  const vacancyRows = readWorksheet(workbook, "vacancy_dashboard");
-  const funnelRows = readWorksheet(workbook, "funnel_by_vacancy");
-  const sourceSummaryRows = readWorksheet(workbook, "sources_summary");
-  const sourcesByVacancyRows = readWorksheet(workbook, "sources_by_vacancy");
+  const vacancyRows = readWorksheet(workbook, "vacancies");
+  const recruiterRows = readWorksheet(workbook, "recruiters");
+  const reviewRows = readWorksheet(workbook, "review");
   const dataQualityRows = readWorksheet(workbook, "data_quality");
 
   if (vacancyRows.length === 0) {
-    throw new Error("В файле не найден лист vacancy_dashboard или он пустой");
+    throw new Error("В файле не найден лист vacancies или он пустой");
   }
 
   const vacancies: Vacancy[] = [];
@@ -367,29 +460,27 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
   const offers: Offer[] = [];
   const nextCandidateId = { value: 1 };
   const nextOfferId = { value: 1 };
-  const funnelRowsByTitle = new Map(
-    funnelRows.map((row) => [
-      asText(row.total_vacancy_name) || asText(row.vacancy_name) || asText(row.vacancy),
-      row
-    ])
-  );
 
   vacancyRows.forEach((row, rowIndex) => {
     const id = rowIndex + 1;
     const title = asText(row.total_vacancy_name) || `Вакансия ${id}`;
-    const funnelRow = funnelRowsByTitle.get(title) || row;
     const department = asText(row.department) || "Не указано";
     const team = asText(row.division) || "Не указано";
-    const recruiter = asText(row.recruiter) || "Не указано";
-    const status = normalizeStatus(asText(row.status));
+    const recruiter = asText(row.recruiter_total) || asText(row.recruiter_canonical) || "Не указано";
+    const lifecycleStatus = asText(row.vacancy_lifecycle_status);
+    let status = lifecycleStatus ? normalizeStatus(lifecycleStatus) : normalizeStatus(asText(row.source_status_total));
     const targetCloseDays =
-      asValidDays(row.target_days) ||
+      asValidDays(row.target_days_total) ||
       asValidDays(row.target_close_days) ||
-      asValidDays(row.target_sla_days);
-    const actualCloseDays = asValidDays(row.actual_close_days) || asValidDays(row.days_to_close);
-    const daysInWork = asValidDays(row.days_in_work);
+      asValidDays(row.target_sla_days) ||
+      daysBetween(row.open_date_total, row.target_close_date_total);
+    const actualCloseDays = asValidDays(row.actual_close_days_total);
+    if (status === "unknown" && actualCloseDays > 0) {
+      status = "closed";
+    }
+    const daysInWork = asValidDays(row.days_in_work_total);
     const daysToClose = actualCloseDays || (status === "closed" ? daysInWork : 0);
-    const slaDays = targetCloseDays || asNumber(row.target_days) || 0;
+    const slaDays = targetCloseDays;
     const riskInfo = getRiskInfo(row, status);
 
     vacancies.push({
@@ -409,25 +500,31 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       ...riskInfo
     });
 
-    const hhResponses = asNumber(funnelRow.hh_responses);
-    const hfNew = asNumber(funnelRow.hf_new);
-    const recruiterInterviews = asNumber(funnelRow.hf_recruiter_interviews);
-    const hmInterviews = asNumber(funnelRow.hf_hm_interviews);
-    const techInterviews = asNumber(funnelRow.hf_tech_interviews);
-    const finalInterviews = asNumber(funnelRow.hf_final_interviews);
-    const jobOffers = asNumber(funnelRow.hf_job_offer);
-    const offerAccepted = asNumber(funnelRow.hf_offer_accepted);
-
-    const interviewTotal = Math.max(recruiterInterviews, hmInterviews, techInterviews);
+    const hfNew = asNumber(row.hf_new);
+    const hfMessages = asNumber(row.hf_messages);
+    const recruiterInterviews = asNumber(row.hf_recruiter_interview);
+    const recruiterInterviewsOrTech = asNumber(row.hf_recruiter_interview_or_tech_screening);
+    const hmInterviews = asNumber(row.hf_hiring_manager_interview);
+    const techInterviews = asNumber(row.hf_technical_interview);
+    const finalInterviews = asNumber(row.hf_final_interview);
+    const jobOffers = asNumber(row.hf_job_offer);
+    const offerAccepted = asNumber(row.hf_offer_accepted);
+    const screeningTotal = Math.max(hfMessages, recruiterInterviews);
+    const interviewTotal = Math.max(
+      recruiterInterviews,
+      recruiterInterviewsOrTech,
+      hmInterviews,
+      techInterviews
+    );
     const finalTotal = Math.max(finalInterviews, Math.min(hmInterviews, interviewTotal));
     const exitCount = offerAccepted;
     const offerCount = Math.max(jobOffers - exitCount, 0);
     const finalCount = Math.max(finalTotal - jobOffers, 0);
     const interviewCount = Math.max(interviewTotal - finalTotal, 0);
-    const screeningCount = Math.max(hfNew - interviewTotal, 0);
-    const responseOnlyCount = Math.max(hhResponses - hfNew, 0);
+    const screeningCount = Math.max(screeningTotal - interviewTotal, 0);
+    const responseOnlyCount = Math.max(hfNew - screeningTotal, 0);
 
-    addRepeatedCandidates(candidates, responseOnlyCount, id, "Отклики", "HeadHunter", nextCandidateId);
+    addRepeatedCandidates(candidates, responseOnlyCount, id, "Отклики", "Huntflow", nextCandidateId);
     addRepeatedCandidates(candidates, screeningCount, id, "Скрининг", "Huntflow", nextCandidateId);
     addRepeatedCandidates(candidates, interviewCount, id, "Интервью", "Huntflow", nextCandidateId);
     addRepeatedCandidates(candidates, finalCount, id, "Финал", "Huntflow", nextCandidateId);
@@ -436,6 +533,33 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
 
     addRepeatedOffers(offers, offerAccepted, id, "accepted", "", nextOfferId);
     addRepeatedOffers(offers, Math.max(jobOffers - offerAccepted, 0), id, "declined", "Оффер не принят", nextOfferId);
+  });
+
+  const recruiterWorkload = recruiterRows.map((row) => {
+    const canonical = asText(row.recruiter_canonical);
+
+    return {
+      name: asText(row.recruiter_display_name) || canonical || "Не указано",
+      canonical,
+      activeVacancies: asNumber(row.total_active_vacancies),
+      pausedVacancies: asNumber(row.total_paused_vacancies),
+      frozenVacancies: asNumber(row.total_frozen_vacancies),
+      waitingStartVacancies: asNumber(row.total_waiting_start_vacancies),
+      closedVacancies: asNumber(row.total_closed_vacancies),
+      allVacancies: asNumber(row.total_all_vacancies),
+      hfNew: asNumber(row.hf_new),
+      hfMessages: asNumber(row.hf_messages),
+      hfRecruiterInterview: asNumber(row.hf_recruiter_interview),
+      hfHiringManagerInterview: asNumber(row.hf_hiring_manager_interview),
+      hfFinalInterview: asNumber(row.hf_final_interview),
+      hfJobOffer: asNumber(row.hf_job_offer),
+      hfOfferAccepted: asNumber(row.hf_offer_accepted),
+      hfRejected: asNumber(row.hf_rejected),
+      hhResponses: asNumber(row.hh_responses),
+      hhInvitationsFromResponses: asNumber(row.hh_invitations_from_responses),
+      hhPublicationCost: asNumber(row.hh_publication_cost),
+      hhResponseCost: asNumber(row.hh_response_cost)
+    };
   });
 
   const departments = uniqueNonEmpty(vacancies.map((vacancy) => vacancy.department));
@@ -447,7 +571,18 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       ])
     ).values()
   );
-  const recruiters = uniqueNonEmpty(vacancies.map((vacancy) => vacancy.recruiter));
+  const recruiters = uniqueNonEmpty([
+    ...vacancies.map((vacancy) => vacancy.recruiter),
+    ...recruiterWorkload.flatMap((recruiter) => [recruiter.name, recruiter.canonical])
+  ]);
+  const reviewIssues = reviewRows
+    .filter((row) => ["warning", "critical"].includes(asText(row.severity).toLowerCase()))
+    .map((row) => ({
+      severity: asText(row.severity),
+      issueType: asText(row.issue_type),
+      vacancy: asText(row.total_vacancy_name) || asText(row.hf_vacancy_id) || "Не указано",
+      reason: asText(row.reason)
+    }));
 
   return {
     departments,
@@ -457,9 +592,11 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     candidates,
     offers,
     funnelStages: DEFAULT_FUNNEL_STAGES,
-    sourcesSummary: buildSourceSummary(sourceSummaryRows),
-    sourcesByVacancy: buildSourcesByVacancy(sourcesByVacancyRows),
-    dataQuality: buildDataQualitySummary(dataQualityRows)
+    sourcesSummary: [],
+    sourcesByVacancy: [],
+    dataQuality: buildDataQualitySummary(dataQualityRows),
+    recruiterWorkload,
+    reviewIssues
   };
 };
 
@@ -480,6 +617,8 @@ function DiagnosticsBlock({ activePrototype, isLoaded, data }: DiagnosticsBlockP
       <span>funnelStages: {data.funnelStages.length}</span>
       <span>sourcesSummary: {data.sourcesSummary.length}</span>
       <span>dataQuality: {data.dataQuality.length}</span>
+      <span>recruiterWorkload: {data.recruiterWorkload.length}</span>
+      <span>reviewIssues: {data.reviewIssues.length}</span>
     </section>
   );
 }
@@ -515,7 +654,9 @@ function CurrentMvp({
     teams,
     vacancies,
     sourcesSummary,
-    dataQuality
+    dataQuality,
+    recruiterWorkload: recruiterWorkloadRows,
+    reviewIssues
   } = dashboardData;
 
   const resetFilters = () => {
@@ -555,8 +696,8 @@ function CurrentMvp({
   );
   const filteredOffers = offers.filter((offer) => filteredVacancyIds.includes(offer.vacancyId));
 
-  const activeVacancies = filteredVacancies.filter((vacancy) => vacancy.status === "active");
-  const closedVacancies = filteredVacancies.filter((vacancy) => vacancy.status === "closed");
+  const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
+  const closedVacancies = filteredVacancies.filter((vacancy) => isClosedStatus(vacancy.status));
   const closedOnTime = closedVacancies.filter(
     (vacancy) => vacancy.slaDays > 0 && vacancy.daysToClose > 0 && vacancy.daysToClose <= vacancy.slaDays
   );
@@ -698,37 +839,22 @@ function CurrentMvp({
 
   const visibleTimingRows = showAllTimingRows ? timingRows : timingRows.slice(0, 10);
 
-  const recruiterWorkload = recruiters
-    .map((recruiter) => {
-      const recruiterVacancies = filteredVacancies.filter((vacancy) => vacancy.recruiter === recruiter);
-      const recruiterClosed = recruiterVacancies.filter((vacancy) => vacancy.status === "closed");
-      const recruiterOffers = filteredOffers.filter((offer) => {
-        const vacancy = filteredVacancies.find((item) => item.id === offer.vacancyId);
-        return vacancy?.recruiter === recruiter;
-      });
-      const recruiterAcceptedOffers = recruiterOffers.filter((offer) => offer.status === "accepted");
-
-      return {
-        name: recruiter,
-        activeVacancies: recruiterVacancies.filter((vacancy) => vacancy.status === "active").length,
-        closedVacancies: recruiterClosed.length,
-        closedOnTime: percent(
-          recruiterClosed.filter((vacancy) => vacancy.daysToClose <= vacancy.slaDays).length,
-          recruiterClosed.length
-        ),
-        averageCloseDays: `${average(recruiterClosed.map((vacancy) => vacancy.daysToClose))} дн.`,
-        offers: recruiterOffers.length,
-        acceptedOffers: recruiterAcceptedOffers.length,
-        offerConversion: percent(recruiterAcceptedOffers.length, recruiterOffers.length)
-      };
-    })
+  const recruiterWorkload = recruiterWorkloadRows
     .filter(
       (recruiter) =>
         selectedRecruiter === DEFAULT_RECRUITER ||
         recruiter.name === selectedRecruiter ||
-        recruiter.activeVacancies > 0 ||
-        recruiter.closedVacancies > 0
-    );
+        recruiter.canonical === selectedRecruiter
+    )
+    .filter((recruiter) => {
+      if (selectedDepartment === DEFAULT_DEPARTMENT && selectedTeam === DEFAULT_TEAM) {
+        return true;
+      }
+
+      return filteredVacancies.some(
+        (vacancy) => vacancy.recruiter === recruiter.name || vacancy.recruiter === recruiter.canonical
+      );
+    });
 
   const displayedRecruiterWorkload = showAllRecruiters ? recruiterWorkload : recruiterWorkload.slice(0, 5);
 
@@ -780,6 +906,26 @@ function CurrentMvp({
               <strong>{item.value}</strong>
             </article>
           ))
+        )}
+      </section>
+
+      <section className="card table-card">
+        <div className="section-heading">
+          <h2>Проверка данных</h2>
+          <span>Только warning и critical из листа review</span>
+        </div>
+
+        {reviewIssues.length === 0 ? (
+          <p className="empty-state">Критичных проблем нет.</p>
+        ) : (
+          <div className="breakdown-list">
+            {reviewIssues.slice(0, 6).map((issue, index) => (
+              <div className="reason-item" key={`${issue.issueType}-${issue.vacancy}-${index}`}>
+                <span>{issue.issueType} · {issue.vacancy}</span>
+                <strong>{issue.reason || issue.severity}</strong>
+              </div>
+            ))}
+          </div>
         )}
       </section>
 
@@ -1107,12 +1253,13 @@ function CurrentMvp({
               <tr>
                 <th>Рекрутер</th>
                 <th>Вакансии в работе</th>
+                <th>Пауза / заморозка</th>
                 <th>Закрытые вакансии</th>
-                <th>% закрытых в срок</th>
-                <th>Средний срок закрытия</th>
-                <th>Офферы</th>
-                <th>Принятые офферы</th>
-                <th>Конверсия офферов</th>
+                <th>HF новые</th>
+                <th>HF интервью НМ</th>
+                <th>HF офферы</th>
+                <th>HF принятые</th>
+                <th>HH отклики</th>
               </tr>
             </thead>
             <tbody>
@@ -1120,12 +1267,13 @@ function CurrentMvp({
                 <tr key={recruiter.name}>
                   <td>{recruiter.name}</td>
                   <td>{recruiter.activeVacancies}</td>
+                  <td>{recruiter.pausedVacancies} / {recruiter.frozenVacancies}</td>
                   <td>{recruiter.closedVacancies}</td>
-                  <td>{recruiter.closedOnTime}</td>
-                  <td>{recruiter.averageCloseDays}</td>
-                  <td>{recruiter.offers}</td>
-                  <td>{recruiter.acceptedOffers}</td>
-                  <td>{recruiter.offerConversion}</td>
+                  <td>{recruiter.hfNew}</td>
+                  <td>{recruiter.hfHiringManagerInterview}</td>
+                  <td>{recruiter.hfJobOffer}</td>
+                  <td>{recruiter.hfOfferAccepted}</td>
+                  <td>{recruiter.hhResponses}</td>
                 </tr>
               ))}
             </tbody>
