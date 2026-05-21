@@ -21,6 +21,7 @@ const DEFAULT_DEPARTMENT = "Все департаменты";
 const DEFAULT_TEAM = "Все отделы";
 const DEFAULT_RECRUITER = "Все рекрутеры";
 const DEFAULT_FUNNEL_STAGES = ["Отклики", "Скрининг", "Интервью", "Финал", "Оффер", "Выход"];
+const SHOW_DIAGNOSTICS = false;
 
 type Vacancy = {
   id: number;
@@ -214,6 +215,21 @@ const daysBetween = (start: unknown, end: unknown) => {
 
 const uniqueNonEmpty = (values: string[]) =>
   Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+
+const normalizeRecruiterKey = (value: string) => value.trim().toLowerCase().replaceAll("ё", "е");
+
+const isHumanFriendlyRecruiterName = (value: string) => {
+  const trimmed = value.trim();
+
+  return trimmed !== "" && trimmed !== trimmed.toLowerCase();
+};
+
+const pickRecruiterDisplayName = (...values: string[]) => {
+  const nonEmpty = values.map((value) => value.trim()).filter(Boolean);
+  const friendly = nonEmpty.find(isHumanFriendlyRecruiterName);
+
+  return friendly || nonEmpty[0] || "Не указано";
+};
 
 const normalizeCandidateSource = (source: string) => {
   const value = source.trim();
@@ -466,7 +482,10 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     const title = asText(row.total_vacancy_name) || `Вакансия ${id}`;
     const department = asText(row.department) || "Не указано";
     const team = asText(row.division) || "Не указано";
-    const recruiter = asText(row.recruiter_total) || asText(row.recruiter_canonical) || "Не указано";
+    const recruiter = pickRecruiterDisplayName(
+      asText(row.recruiter_total),
+      asText(row.recruiter_canonical)
+    );
     const lifecycleStatus = asText(row.vacancy_lifecycle_status);
     let status = lifecycleStatus ? normalizeStatus(lifecycleStatus) : normalizeStatus(asText(row.source_status_total));
     const targetCloseDays =
@@ -535,11 +554,18 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     addRepeatedOffers(offers, Math.max(jobOffers - offerAccepted, 0), id, "declined", "Оффер не принят", nextOfferId);
   });
 
-  const recruiterWorkload = recruiterRows.map((row) => {
+  const recruiterWorkloadByKey = new Map<string, RecruiterWorkloadItem>();
+  recruiterRows.forEach((row) => {
     const canonical = asText(row.recruiter_canonical);
+    const name = pickRecruiterDisplayName(asText(row.recruiter_display_name), canonical);
+    const key = normalizeRecruiterKey(name || canonical);
 
-    return {
-      name: asText(row.recruiter_display_name) || canonical || "Не указано",
+    if (!key || recruiterWorkloadByKey.has(key)) {
+      return;
+    }
+
+    recruiterWorkloadByKey.set(key, {
+      name,
       canonical,
       activeVacancies: asNumber(row.total_active_vacancies),
       pausedVacancies: asNumber(row.total_paused_vacancies),
@@ -559,8 +585,9 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       hhInvitationsFromResponses: asNumber(row.hh_invitations_from_responses),
       hhPublicationCost: asNumber(row.hh_publication_cost),
       hhResponseCost: asNumber(row.hh_response_cost)
-    };
+    });
   });
+  const recruiterWorkload = Array.from(recruiterWorkloadByKey.values());
 
   const departments = uniqueNonEmpty(vacancies.map((vacancy) => vacancy.department));
   const teams = Array.from(
@@ -571,10 +598,19 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       ])
     ).values()
   );
-  const recruiters = uniqueNonEmpty([
-    ...vacancies.map((vacancy) => vacancy.recruiter),
-    ...recruiterWorkload.flatMap((recruiter) => [recruiter.name, recruiter.canonical])
-  ]);
+  const recruitersByKey = new Map<string, string>();
+  [
+    ...recruiterWorkload.map((recruiter) => recruiter.name),
+    ...vacancies.map((vacancy) => vacancy.recruiter)
+  ].forEach((name) => {
+    const displayName = pickRecruiterDisplayName(name);
+    const key = normalizeRecruiterKey(displayName);
+
+    if (key && !recruitersByKey.has(key)) {
+      recruitersByKey.set(key, displayName);
+    }
+  });
+  const recruiters = Array.from(recruitersByKey.values());
   const reviewIssues = reviewRows
     .filter((row) => ["warning", "critical"].includes(asText(row.severity).toLowerCase()))
     .map((row) => ({
@@ -929,7 +965,9 @@ function CurrentMvp({
         )}
       </section>
 
-      <DiagnosticsBlock activePrototype="Current MVP" isLoaded={isExcelLoaded} data={dashboardData} />
+      {SHOW_DIAGNOSTICS && (
+        <DiagnosticsBlock activePrototype="Current MVP" isLoaded={isExcelLoaded} data={dashboardData} />
+      )}
 
       <section className="filters-card card" aria-label="Фильтры дашборда">
         <div className="filters-heading">
