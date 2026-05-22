@@ -761,7 +761,6 @@ function CurrentMvp({
   const [selectedDepartment, setSelectedDepartment] = useState(DEFAULT_DEPARTMENT);
   const [selectedTeam, setSelectedTeam] = useState(DEFAULT_TEAM);
   const [selectedRecruiter, setSelectedRecruiter] = useState(DEFAULT_RECRUITER);
-  const [selectedStatus, setSelectedStatus] = useState(DEFAULT_STATUS);
   const [timingStatusFilter, setTimingStatusFilter] = useState(DEFAULT_STATUS);
   const [timingSort, setTimingSort] = useState(DEFAULT_TIMING_SORT);
   const [timingSlaFilter, setTimingSlaFilter] = useState(DEFAULT_TIMING_SLA);
@@ -778,8 +777,6 @@ function CurrentMvp({
     recruiters,
     teams,
     vacancies,
-    sourcesSummary,
-    dataQuality,
     recruiterWorkload: recruiterWorkloadRows,
     reviewIssues
   } = dashboardData;
@@ -788,7 +785,6 @@ function CurrentMvp({
     setSelectedDepartment(DEFAULT_DEPARTMENT);
     setSelectedTeam(DEFAULT_TEAM);
     setSelectedRecruiter(DEFAULT_RECRUITER);
-    setSelectedStatus(DEFAULT_STATUS);
     setTimingStatusFilter(DEFAULT_STATUS);
     setTimingSort(DEFAULT_TIMING_SORT);
     setTimingSlaFilter(DEFAULT_TIMING_SLA);
@@ -824,10 +820,7 @@ function CurrentMvp({
     [selectedDepartment, selectedTeam, selectedRecruiter, vacancies]
   );
 
-  const filteredVacancies = useMemo(
-    () => funnelFilteredVacancies.filter((vacancy) => statusMatchesFilter(vacancy.status, selectedStatus)),
-    [funnelFilteredVacancies, selectedStatus]
-  );
+  const filteredVacancies = funnelFilteredVacancies;
 
   const filteredVacancyIds = filteredVacancies.map((vacancy) => vacancy.id);
   const funnelFilteredVacancyIds = funnelFilteredVacancies.map((vacancy) => vacancy.id);
@@ -838,23 +831,17 @@ function CurrentMvp({
 
   const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
   const closedVacancies = filteredVacancies.filter((vacancy) => isClosedStatus(vacancy.status));
-  const allActiveVacancies = vacancies.filter((vacancy) => isActiveStatus(vacancy.status));
-  const allPausedVacancies = vacancies.filter((vacancy) => vacancy.status === "paused");
-  const allFrozenVacancies = vacancies.filter((vacancy) => vacancy.status === "frozen");
-  const allWaitingStartVacancies = vacancies.filter((vacancy) => vacancy.status === "waiting_start");
-  const allClosedVacancies = vacancies.filter((vacancy) => isClosedStatus(vacancy.status));
   const closedOnTime = closedVacancies.filter(
     (vacancy) => vacancy.slaDays > 0 && vacancy.daysToClose > 0 && vacancy.daysToClose <= vacancy.slaDays
   );
-  const acceptedOffers = filteredOffers.filter((offer) => offer.status === "accepted");
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
   const currentRisk = riskyVacancies[safeRiskIndex];
   const recruiterFunnelRows = recruiterWorkloadRows.filter(
     (recruiter) =>
-      selectedRecruiter === DEFAULT_RECRUITER ||
-      recruiter.name === selectedRecruiter ||
-      recruiter.canonical === selectedRecruiter
+      selectedRecruiter === DEFAULT_RECRUITER
+        ? isActiveRecruiter(recruiter.name)
+        : recruiter.name === selectedRecruiter || recruiter.canonical === selectedRecruiter
   );
   const recruiterFunnelOffers = recruiterFunnelRows.reduce(
     (sum, recruiter) => sum + recruiter.hfJobOffer,
@@ -862,6 +849,14 @@ function CurrentMvp({
   );
   const recruiterFunnelAcceptedOffers = recruiterFunnelRows.reduce(
     (sum, recruiter) => sum + recruiter.hfOfferAccepted,
+    0
+  );
+  const recruiterPrimaryInterviews = recruiterFunnelRows.reduce(
+    (sum, recruiter) => sum + recruiter.hfRecruiterInterview,
+    0
+  );
+  const recruiterFinalInterviews = recruiterFunnelRows.reduce(
+    (sum, recruiter) => sum + Math.max(recruiter.hfFinalInterview, recruiter.hfHiringManagerInterview),
     0
   );
 
@@ -875,69 +870,36 @@ function CurrentMvp({
     setRiskIndex((current) => (current === riskyVacancies.length - 1 ? 0 : current + 1));
   };
 
-  const dataQualityText = dataQuality.find((item) => item.label === "Качество данных")?.value || "";
-  const errorsCount = Number(dataQualityText.match(/ошибок\s+(\d+)/i)?.[1] || 0);
-  const warningCount = Number(dataQualityText.match(/предупреждений\s+(\d+)/i)?.[1] || reviewIssues.length);
-
   const topKpis = [
-    {
-      label: "Всего вакансий",
-      value: vacancies.length,
-      hint: "из Total",
-      tone: "neutral"
-    },
-    {
-      label: "В работе",
-      value: allActiveVacancies.length,
-      hint: "активные позиции",
-      tone: "active"
-    },
-    {
-      label: "Пауза / заморозка",
-      value: allPausedVacancies.length + allFrozenVacancies.length,
-      hint: `${allPausedVacancies.length} пауза · ${allFrozenVacancies.length} заморозка`,
-      tone: "paused"
-    },
-    {
-      label: "Ждём выхода",
-      value: allWaitingStartVacancies.length,
-      hint: "оффер принят, выход впереди",
-      tone: "waiting"
-    },
-    {
-      label: "Закрыто",
-      value: allClosedVacancies.length,
-      hint: "завершенные поиски",
-      tone: "closed"
-    },
-    {
-      label: "Качество данных",
-      value: errorsCount === 0 ? "ОК" : "Есть ошибки",
-      hint: `warning: ${warningCount}`,
-      tone: errorsCount === 0 ? "quality" : "warning"
-    }
-  ];
-
-  const metrics = [
     {
       label: "В работе",
       value: activeVacancies.length,
-      hint: "Активные позиции"
+      hint: "Вакансии в выбранном срезе",
+      tone: "active"
     },
     {
       label: "Закрыто",
       value: closedVacancies.length,
-      hint: "Завершенные поиски"
+      hint: "Вакансии в выбранном срезе",
+      tone: "closed"
     },
     {
-      label: "Офферы",
+      label: "Закрыто в срок",
+      value: percentOneDecimal(closedOnTime.length, closedVacancies.length),
+      hint: "По вакансиям выбранного среза",
+      tone: "quality"
+    },
+    {
+      label: "Всего офферов",
       value: recruiterFunnelOffers,
-      hint: "По полной воронке Huntflow"
+      hint: "По полной воронке Huntflow",
+      tone: "neutral"
     },
     {
       label: "Принято офферов",
       value: recruiterFunnelAcceptedOffers,
-      hint: "По полной воронке Huntflow"
+      hint: "По полной воронке Huntflow",
+      tone: "waiting"
     },
     {
       label: "Принятие офферов",
@@ -945,12 +907,8 @@ function CurrentMvp({
         recruiterFunnelOffers > 0
           ? percentOneDecimal(recruiterFunnelAcceptedOffers, recruiterFunnelOffers)
           : "—",
-      hint: "По полной воронке Huntflow за период"
-    },
-    {
-      label: "Закрыто в срок, %",
-      value: percentOneDecimal(closedOnTime.length, closedVacancies.length),
-      hint: "По целевому сроку"
+      hint: "По полной воронке Huntflow",
+      tone: "closed"
     }
   ];
 
@@ -973,17 +931,6 @@ function CurrentMvp({
   });
 
   const maxFunnelCount = Math.max(...funnel.map((item) => item.count), 1);
-
-  const sourceTotal = sourcesSummary.reduce((sum, item) => sum + item.count, 0);
-  const sourceDistribution = sourcesSummary
-    .map((item) => ({
-      source: item.source,
-      count: item.count,
-      offers: item.offers,
-      acceptedOffers: item.acceptedOffers,
-      share: percent(item.count, sourceTotal)
-    }))
-    .sort((first, second) => second.count - first.count);
 
   const declinedOffers = filteredOffers.filter((offer) => offer.status === "declined");
   const declineReasons = Object.entries(groupByCount(declinedOffers, (offer) => offer.rejectReason))
@@ -1119,16 +1066,6 @@ function CurrentMvp({
         </div>
       </header>
 
-      <section className="kpi-grid" aria-label="Главные показатели">
-        {topKpis.map((metric) => (
-          <article className={`kpi-card ${metric.tone}`} key={metric.label}>
-            <span className="kpi-label">{metric.label}</span>
-            <strong className="kpi-value">{metric.value}</strong>
-            <span className="kpi-subtext">{metric.hint}</span>
-          </article>
-        ))}
-      </section>
-
       {SHOW_DIAGNOSTICS && (
         <DiagnosticsBlock activePrototype="Current MVP" isLoaded={isExcelLoaded} data={dashboardData} />
       )}
@@ -1200,46 +1137,17 @@ function CurrentMvp({
             </select>
           </label>
 
-          <label>
-            <span>Статус</span>
-            <select
-              value={selectedStatus}
-              onChange={(event) => {
-                setSelectedStatus(event.target.value);
-                setRiskIndex(0);
-                setShowAllRecruiters(false);
-                setShowAllTimingRows(false);
-              }}
-            >
-              {STATUS_FILTERS.map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-            </select>
-          </label>
         </div>
       </section>
 
-      <section className="section-card selected-summary">
-        <div className="section-heading compact">
-          <div>
-            <h2>Сводка по выбранным фильтрам</h2>
-            <span>{filteredVacancies.length} вакансий в текущем срезе</span>
-          </div>
-        </div>
-
-        <div className="summary-metrics-grid">
-          {metrics.map((metric) => (
-            <article className="summary-metric" key={metric.label}>
-              <span>{metric.label}</span>
-              <strong>{metric.value}</strong>
-              <small>{metric.hint}</small>
-            </article>
-          ))}
-        </div>
-
-        <p className="summary-note">
-          Офферы — по полной воронке Huntflow, без фильтра по статусу вакансии.
-        </p>
+      <section className="kpi-grid" aria-label="Главные показатели">
+        {topKpis.map((metric) => (
+          <article className={`kpi-card ${metric.tone}`} key={metric.label}>
+            <span className="kpi-label">{metric.label}</span>
+            <strong className="kpi-value">{metric.value}</strong>
+            <span className="kpi-subtext">{metric.hint}</span>
+          </article>
+        ))}
       </section>
 
       <section className="two-column-layout">
@@ -1399,6 +1307,77 @@ function CurrentMvp({
         </div>
 
         <aside className="side-column">
+          <article className="section-card offers-card">
+            <div className="section-heading">
+              <div>
+                <h2>Офферы</h2>
+                <span>По полной воронке Huntflow за период</span>
+              </div>
+            </div>
+
+            <div className="offer-summary">
+              <div>
+                <span>Выставлено</span>
+                <strong>{recruiterFunnelOffers}</strong>
+              </div>
+              <div>
+                <span>Принято</span>
+                <strong>{recruiterFunnelAcceptedOffers}</strong>
+              </div>
+              <div>
+                <span>Принятие</span>
+                <strong>
+                  {recruiterFunnelOffers > 0
+                    ? percentOneDecimal(recruiterFunnelAcceptedOffers, recruiterFunnelOffers)
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+
+            <div className="breakdown-list">
+              {declineReasons.length === 0 ? (
+                <p className="empty-state compact">Причины отказов пока не подключены.</p>
+              ) : (
+                declineReasons.slice(0, 4).map((item) => (
+                  <div className="reason-item" key={item.reason}>
+                    <span>{item.reason}</span>
+                    <strong>
+                      {item.count} · {item.share}
+                    </strong>
+                  </div>
+                ))
+              )}
+            </div>
+          </article>
+
+          <article className="section-card interview-card">
+            <div className="section-heading">
+              <div>
+                <h2>Первички → финалы</h2>
+                <span>Конверсия из интервью с рекрутером в финальный этап</span>
+              </div>
+            </div>
+
+            {recruiterPrimaryInterviews === 0 ? (
+              <p className="empty-state compact">Данных по первичным интервью пока нет.</p>
+            ) : (
+              <div className="offer-summary">
+                <div>
+                  <span>Первичные интервью</span>
+                  <strong>{recruiterPrimaryInterviews}</strong>
+                </div>
+                <div>
+                  <span>Финальные этапы</span>
+                  <strong>{recruiterFinalInterviews}</strong>
+                </div>
+                <div>
+                  <span>Конверсия</span>
+                  <strong>{percentOneDecimal(recruiterFinalInterviews, recruiterPrimaryInterviews)}</strong>
+                </div>
+              </div>
+            )}
+          </article>
+
           <article className={`data-quality-alert section-card ${reviewIssues.length === 0 ? "success" : "warning"}`}>
             <div className="alert-heading">
               <div>
@@ -1476,74 +1455,22 @@ function CurrentMvp({
             </div>
           </article>
 
-          <article className="section-card offers-card">
+          <article className="section-card next-metrics-card">
             <div className="section-heading">
               <div>
-                <h2>Офферы</h2>
-                <span>Статусы и отказы</span>
+                <h2>Следующие метрики</h2>
+                <span>Появятся после уточнения источников</span>
               </div>
             </div>
 
-            <div className="offer-summary">
-              <div>
-                <span>Всего</span>
-                <strong>{filteredOffers.length}</strong>
-              </div>
-              <div>
-                <span>Принято</span>
-                <strong>{acceptedOffers.length}</strong>
-              </div>
-              <div>
-                <span>Конверсия</span>
-                <strong>{percent(acceptedOffers.length, filteredOffers.length)}</strong>
-              </div>
-            </div>
-
-            <div className="breakdown-list">
-              {declineReasons.length === 0 ? (
-                <p className="empty-state compact">Отказов по выбранным фильтрам нет.</p>
-              ) : (
-                declineReasons.slice(0, 4).map((item) => (
-                  <div className="reason-item" key={item.reason}>
-                    <span>{item.reason}</span>
-                    <strong>
-                      {item.count} · {item.share}
-                    </strong>
-                  </div>
-                ))
-              )}
+            <div className="next-metrics-list">
+              <span>Источники подбора — данные Huntflow, нужно подключение</span>
+              <span>Рекомендации — данные Huntflow, нужно подключение</span>
+              <span>Тестовые задания — нужно определить этапы кейсов / OnTarget</span>
+              <span>Качество подбора / прохождение ИС — нужен отдельный источник</span>
+              <span>Стоимость найма — расчет по итогам года</span>
             </div>
           </article>
-
-          {sourceDistribution.length > 0 && (
-            <article className="section-card sources-card">
-              <div className="section-heading">
-                <div>
-                  <h2>Источники подбора</h2>
-                  <span>Из Excel, если доступны</span>
-                </div>
-              </div>
-
-              <div className="source-list">
-                {sourceDistribution.slice(0, 5).map((item) => (
-                  <div className="source-row" key={item.source}>
-                    <div>
-                      <span>{item.source}</span>
-                      <strong>{item.count}</strong>
-                    </div>
-                    <div className="funnel-track">
-                      <div
-                        className="funnel-bar"
-                        style={{
-                          width: `${(item.count / Math.max(sourceTotal, 1)) * 100}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-          )}
         </aside>
       </section>
 
