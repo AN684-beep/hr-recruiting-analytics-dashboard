@@ -771,6 +771,13 @@ p {
   white-space: nowrap;
 }
 
+.metric-explain {
+  margin-top: 10px;
+  color: #748196;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .source-row div:first-child {
   display: flex;
   align-items: center;
