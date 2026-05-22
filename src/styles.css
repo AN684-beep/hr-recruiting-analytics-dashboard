@@ -431,6 +431,18 @@ p {
   line-height: 1.3;
 }
 
+.summary-note {
+  margin-top: 12px;
+  border: 1px solid #ccfbf1;
+  border-radius: 12px;
+  background: #f0fdfa;
+  color: #0f766e;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .two-column-layout {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
@@ -963,6 +975,28 @@ tbody tr.selected-row td {
 
 .recruiter-card {
   margin-top: 16px;
+}
+
+.toggle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.toggle-control input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--color-blue);
 }
 
 @media (max-width: 1120px) {
