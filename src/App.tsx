@@ -41,6 +41,7 @@ const TIMING_SORT_OPTIONS = [
   "Давно закрытые"
 ];
 const TIMING_SLA_OPTIONS = [DEFAULT_TIMING_SLA, "В срок", "Просрочено", "Нет данных"];
+const ACTIVE_RECRUITERS = ["Алла", "Катя", "Маша", "Лена", "Настя"];
 
 type Vacancy = {
   id: number;
@@ -358,6 +359,12 @@ const acceptanceRateClassName = (accepted: number, total: number) => {
   }
 
   return "low";
+};
+
+const isActiveRecruiter = (name: string) => {
+  const recruiterKey = normalizeRecruiterKey(name);
+
+  return ACTIVE_RECRUITERS.some((activeRecruiter) => normalizeRecruiterKey(activeRecruiter) === recruiterKey);
 };
 
 const getRiskInfo = (row: ExcelRow, status: string) => {
@@ -760,6 +767,7 @@ function CurrentMvp({
   const [timingSlaFilter, setTimingSlaFilter] = useState(DEFAULT_TIMING_SLA);
   const [riskIndex, setRiskIndex] = useState(0);
   const [showAllRecruiters, setShowAllRecruiters] = useState(false);
+  const [showInactiveRecruiters, setShowInactiveRecruiters] = useState(false);
   const [showAllTimingRows, setShowAllTimingRows] = useState(false);
 
   const {
@@ -786,6 +794,7 @@ function CurrentMvp({
     setTimingSlaFilter(DEFAULT_TIMING_SLA);
     setRiskIndex(0);
     setShowAllRecruiters(false);
+    setShowInactiveRecruiters(false);
     setShowAllTimingRows(false);
   };
 
@@ -797,7 +806,11 @@ function CurrentMvp({
     return teams.filter((team) => team.department === selectedDepartment);
   }, [selectedDepartment, teams]);
 
-  const filteredVacancies = useMemo(
+  const activeRecruiterOptions = ACTIVE_RECRUITERS.filter((activeRecruiter) =>
+    recruiters.some((recruiter) => normalizeRecruiterKey(recruiter) === normalizeRecruiterKey(activeRecruiter))
+  );
+
+  const funnelFilteredVacancies = useMemo(
     () =>
       vacancies.filter((vacancy) => {
         const departmentMatch =
@@ -805,16 +818,21 @@ function CurrentMvp({
         const teamMatch = selectedTeam === DEFAULT_TEAM || vacancy.team === selectedTeam;
         const recruiterMatch =
           selectedRecruiter === DEFAULT_RECRUITER || vacancy.recruiter === selectedRecruiter;
-        const statusMatch = statusMatchesFilter(vacancy.status, selectedStatus);
 
-        return departmentMatch && teamMatch && recruiterMatch && statusMatch;
+        return departmentMatch && teamMatch && recruiterMatch;
       }),
-    [selectedDepartment, selectedTeam, selectedRecruiter, selectedStatus, vacancies]
+    [selectedDepartment, selectedTeam, selectedRecruiter, vacancies]
+  );
+
+  const filteredVacancies = useMemo(
+    () => funnelFilteredVacancies.filter((vacancy) => statusMatchesFilter(vacancy.status, selectedStatus)),
+    [funnelFilteredVacancies, selectedStatus]
   );
 
   const filteredVacancyIds = filteredVacancies.map((vacancy) => vacancy.id);
-  const filteredCandidates = candidates.filter((candidate) =>
-    filteredVacancyIds.includes(candidate.vacancyId)
+  const funnelFilteredVacancyIds = funnelFilteredVacancies.map((vacancy) => vacancy.id);
+  const funnelFilteredCandidates = candidates.filter((candidate) =>
+    funnelFilteredVacancyIds.includes(candidate.vacancyId)
   );
   const filteredOffers = offers.filter((offer) => filteredVacancyIds.includes(offer.vacancyId));
 
@@ -937,12 +955,12 @@ function CurrentMvp({
   ];
 
   const funnel = funnelStages.map((stage, index) => {
-    const count = filteredCandidates.filter(
+    const count = funnelFilteredCandidates.filter(
       (candidate) => funnelStages.indexOf(candidate.stage) >= index
     ).length;
     const previousStage = funnelStages[index - 1];
     const previousCount = previousStage
-      ? filteredCandidates.filter(
+      ? funnelFilteredCandidates.filter(
           (candidate) => funnelStages.indexOf(candidate.stage) >= index - 1
         ).length
       : count;
@@ -1058,12 +1076,13 @@ function CurrentMvp({
         recruiter.name === selectedRecruiter ||
         recruiter.canonical === selectedRecruiter
     )
+    .filter((recruiter) => showInactiveRecruiters || isActiveRecruiter(recruiter.name))
     .filter((recruiter) => {
       if (selectedDepartment === DEFAULT_DEPARTMENT && selectedTeam === DEFAULT_TEAM) {
         return true;
       }
 
-      return filteredVacancies.some(
+      return funnelFilteredVacancies.some(
         (vacancy) => vacancy.recruiter === recruiter.name || vacancy.recruiter === recruiter.canonical
       );
     });
@@ -1175,7 +1194,7 @@ function CurrentMvp({
               }}
             >
               <option>{DEFAULT_RECRUITER}</option>
-              {recruiters.map((recruiter) => (
+              {activeRecruiterOptions.map((recruiter) => (
                 <option key={recruiter}>{recruiter}</option>
               ))}
             </select>
@@ -1217,6 +1236,10 @@ function CurrentMvp({
             </article>
           ))}
         </div>
+
+        <p className="summary-note">
+          Офферы — по полной воронке Huntflow, без фильтра по статусу вакансии.
+        </p>
       </section>
 
       <section className="two-column-layout">
@@ -1225,7 +1248,7 @@ function CurrentMvp({
             <div className="section-heading">
               <div>
                 <h2>Воронка подбора</h2>
-                <span>С учетом фильтров</span>
+                <span>С учетом фильтров, кроме статуса вакансии</span>
               </div>
             </div>
 
@@ -1533,6 +1556,17 @@ function CurrentMvp({
               {showAllRecruiters ? `показаны все: ${recruiterWorkload.length}` : `показано ${displayedRecruiterWorkload.length} из ${recruiterWorkload.length}`}
             </span>
           </div>
+          <label className="toggle-control">
+            <input
+              checked={showInactiveRecruiters}
+              type="checkbox"
+              onChange={(event) => {
+                setShowInactiveRecruiters(event.target.checked);
+                setShowAllRecruiters(false);
+              }}
+            />
+            <span>Показать неактивных</span>
+          </label>
         </div>
 
         <div className="table-wrap">
