@@ -813,6 +813,13 @@ function CurrentMvp({
     0
   );
 
+  console.log("offer KPI", {
+    selectedRecruiter,
+    recruiterFunnelRows,
+    recruiterFunnelOffers,
+    recruiterFunnelAcceptedOffers
+  });
+
   const showPreviousRisk = () => {
     if (riskyVacancies.length === 0) return;
     setRiskIndex((current) => (current === 0 ? riskyVacancies.length - 1 : current - 1));
