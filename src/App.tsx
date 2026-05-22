@@ -21,6 +21,8 @@ const DEFAULT_DEPARTMENT = "Все департаменты";
 const DEFAULT_TEAM = "Все отделы";
 const DEFAULT_RECRUITER = "Все рекрутеры";
 const DEFAULT_STATUS = "Все статусы";
+const DEFAULT_TIMING_SORT = "Без сортировки";
+const DEFAULT_TIMING_SLA = "Все";
 const DEFAULT_FUNNEL_STAGES = ["Отклики", "Скрининг", "Интервью", "Финал", "Оффер", "Выход"];
 const SHOW_DIAGNOSTICS = false;
 const STATUS_FILTERS = [
@@ -31,6 +33,14 @@ const STATUS_FILTERS = [
   "Ждём выхода",
   "Закрыта"
 ];
+const TIMING_SORT_OPTIONS = [
+  DEFAULT_TIMING_SORT,
+  "Сначала новые",
+  "Сначала старые",
+  "Недавно закрытые",
+  "Давно закрытые"
+];
+const TIMING_SLA_OPTIONS = [DEFAULT_TIMING_SLA, "В срок", "Просрочено", "Нет данных"];
 
 type Vacancy = {
   id: number;
@@ -330,6 +340,24 @@ const statusMatchesFilter = (status: string, filter: string) => {
   }
 
   return statusLabel(status) === filter;
+};
+
+const acceptanceRateClassName = (accepted: number, total: number) => {
+  if (total === 0) {
+    return "empty";
+  }
+
+  const rate = (accepted / total) * 100;
+
+  if (rate >= 80) {
+    return "good";
+  }
+
+  if (rate >= 50) {
+    return "medium";
+  }
+
+  return "low";
 };
 
 const getRiskInfo = (row: ExcelRow, status: string) => {
@@ -727,6 +755,9 @@ function CurrentMvp({
   const [selectedTeam, setSelectedTeam] = useState(DEFAULT_TEAM);
   const [selectedRecruiter, setSelectedRecruiter] = useState(DEFAULT_RECRUITER);
   const [selectedStatus, setSelectedStatus] = useState(DEFAULT_STATUS);
+  const [timingStatusFilter, setTimingStatusFilter] = useState(DEFAULT_STATUS);
+  const [timingSort, setTimingSort] = useState(DEFAULT_TIMING_SORT);
+  const [timingSlaFilter, setTimingSlaFilter] = useState(DEFAULT_TIMING_SLA);
   const [riskIndex, setRiskIndex] = useState(0);
   const [showAllRecruiters, setShowAllRecruiters] = useState(false);
   const [showAllTimingRows, setShowAllTimingRows] = useState(false);
@@ -750,6 +781,9 @@ function CurrentMvp({
     setSelectedTeam(DEFAULT_TEAM);
     setSelectedRecruiter(DEFAULT_RECRUITER);
     setSelectedStatus(DEFAULT_STATUS);
+    setTimingStatusFilter(DEFAULT_STATUS);
+    setTimingSort(DEFAULT_TIMING_SORT);
+    setTimingSlaFilter(DEFAULT_TIMING_SLA);
     setRiskIndex(0);
     setShowAllRecruiters(false);
     setShowAllTimingRows(false);
@@ -812,13 +846,6 @@ function CurrentMvp({
     (sum, recruiter) => sum + recruiter.hfOfferAccepted,
     0
   );
-
-  console.log("offer KPI", {
-    selectedRecruiter,
-    recruiterFunnelRows,
-    recruiterFunnelOffers,
-    recruiterFunnelAcceptedOffers
-  });
 
   const showPreviousRisk = () => {
     if (riskyVacancies.length === 0) return;
@@ -978,6 +1005,7 @@ function CurrentMvp({
     );
     const hasTimingData = targetDays > 0 && actualDays > 0;
     const deviation = hasTimingData ? actualDays - targetDays : 0;
+    const timingStatus = hasTimingData ? (actualDays <= targetDays ? "В срок" : "Просрочено") : "Нет данных";
 
     return {
       id: vacancy.id,
@@ -990,11 +1018,38 @@ function CurrentMvp({
       targetDays,
       actualDays,
       deviation,
-      status: hasTimingData ? (actualDays <= targetDays ? "В срок" : "С опозданием") : "Нет данных"
+      status: timingStatus
     };
   });
 
-  const visibleTimingRows = showAllTimingRows ? timingRows : timingRows.slice(0, 10);
+  const timingRowsHaveDates = false;
+  const filteredTimingRows = timingRows
+    .filter((row) => statusMatchesFilter(row.vacancyStatus, timingStatusFilter))
+    .filter((row) => timingSlaFilter === DEFAULT_TIMING_SLA || row.status === timingSlaFilter);
+  const sortedTimingRows = [...filteredTimingRows].sort((first, second) => {
+    if (timingSort === DEFAULT_TIMING_SORT) {
+      return 0;
+    }
+
+    if (timingSort === "Сначала новые") {
+      return second.id - first.id;
+    }
+
+    if (timingSort === "Сначала старые") {
+      return first.id - second.id;
+    }
+
+    if (timingSort === "Недавно закрытые") {
+      return Number(second.vacancyStatus === "closed") - Number(first.vacancyStatus === "closed") || second.id - first.id;
+    }
+
+    if (timingSort === "Давно закрытые") {
+      return Number(second.vacancyStatus === "closed") - Number(first.vacancyStatus === "closed") || first.id - second.id;
+    }
+
+    return 0;
+  });
+  const visibleTimingRows = showAllTimingRows ? sortedTimingRows : sortedTimingRows.slice(0, 5);
 
   const recruiterWorkload = recruiterWorkloadRows
     .filter(
@@ -1215,8 +1270,57 @@ function CurrentMvp({
             <div className="section-heading">
               <div>
                 <h2>Срок и скорость закрытия</h2>
-                <span>{showAllTimingRows ? `Показаны все: ${timingRows.length}` : `Показано ${visibleTimingRows.length} из ${timingRows.length}`}</span>
+                <span>{`Показано ${visibleTimingRows.length} из ${sortedTimingRows.length}`}</span>
               </div>
+            </div>
+
+            <div className="table-toolbar">
+              <label>
+                <span>Статус</span>
+                <select
+                  value={timingStatusFilter}
+                  onChange={(event) => {
+                    setTimingStatusFilter(event.target.value);
+                    setShowAllTimingRows(false);
+                  }}
+                >
+                  {STATUS_FILTERS.map((status) => (
+                    <option key={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Сортировка по дате</span>
+                <select
+                  value={timingSort}
+                  disabled={!timingRowsHaveDates}
+                  onChange={(event) => {
+                    setTimingSort(event.target.value);
+                    setShowAllTimingRows(false);
+                  }}
+                >
+                  {TIMING_SORT_OPTIONS.map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+                {!timingRowsHaveDates && <small>Нет дат в файле</small>}
+              </label>
+
+              <label>
+                <span>SLA</span>
+                <select
+                  value={timingSlaFilter}
+                  onChange={(event) => {
+                    setTimingSlaFilter(event.target.value);
+                    setShowAllTimingRows(false);
+                  }}
+                >
+                  {TIMING_SLA_OPTIONS.map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             <div className="table-wrap compact-table-wrap">
@@ -1246,7 +1350,7 @@ function CurrentMvp({
                       <td>{row.targetDays > 0 ? `${row.targetDays} дн.` : "Нет данных"}</td>
                       <td>{row.actualDays > 0 ? `${row.actualDays} дн.` : "Нет данных"}</td>
                       <td>
-                        <span className={`timing-status ${row.status === "В срок" ? "on-time" : row.status === "С опозданием" ? "late" : "unknown"}`}>
+                        <span className={`timing-status ${row.status === "В срок" ? "on-time" : row.status === "Просрочено" ? "late" : "unknown"}`}>
                           {row.status}
                         </span>
                       </td>
@@ -1257,8 +1361,11 @@ function CurrentMvp({
             </div>
 
             {timingRows.length === 0 && <p className="empty-state">Загрузите Excel, чтобы увидеть данные.</p>}
+            {timingRows.length > 0 && sortedTimingRows.length === 0 && (
+              <p className="empty-state">По выбранным параметрам вакансий нет.</p>
+            )}
 
-            {timingRows.length > 10 && (
+            {sortedTimingRows.length > 5 && (
               <div className="table-actions">
                 <button type="button" className="secondary-button" onClick={() => setShowAllTimingRows((value) => !value)}>
                   {showAllTimingRows ? "Скрыть" : "Показать еще"}
@@ -1447,7 +1554,15 @@ function CurrentMvp({
             </thead>
             <tbody>
               {displayedRecruiterWorkload.map((recruiter) => (
-                <tr key={recruiter.name}>
+                <tr
+                  className={
+                    selectedRecruiter !== DEFAULT_RECRUITER &&
+                    (recruiter.name === selectedRecruiter || recruiter.canonical === selectedRecruiter)
+                      ? "selected-row"
+                      : ""
+                  }
+                  key={recruiter.name}
+                >
                   <td className="primary-cell">{recruiter.name}</td>
                   <td>{recruiter.activeVacancies}</td>
                   <td>{recruiter.pausedVacancies} / {recruiter.frozenVacancies}</td>
@@ -1456,7 +1571,11 @@ function CurrentMvp({
                   <td>{recruiter.hfHiringManagerInterview}</td>
                   <td>{recruiter.hfJobOffer}</td>
                   <td>{recruiter.hfOfferAccepted}</td>
-                  <td>{recruiter.hfJobOffer > 0 ? percentOneDecimal(recruiter.hfOfferAccepted, recruiter.hfJobOffer) : "—"}</td>
+                  <td>
+                    <span className={`acceptance-badge ${acceptanceRateClassName(recruiter.hfOfferAccepted, recruiter.hfJobOffer)}`}>
+                      {recruiter.hfJobOffer > 0 ? percentOneDecimal(recruiter.hfOfferAccepted, recruiter.hfJobOffer) : "—"}
+                    </span>
+                  </td>
                   <td>{recruiter.hhResponses}</td>
                   <td>{recruiter.hhResponseCost > 0 ? `${formatNumber(recruiter.hhResponseCost)} ₽` : "0 ₽"}</td>
                 </tr>
