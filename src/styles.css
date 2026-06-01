@@ -922,13 +922,22 @@ p {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 12px;
+  align-items: stretch;
 }
 
 .offer-summary div {
+  display: grid;
+  grid-template-rows: minmax(34px, auto) auto;
+  align-content: start;
+  gap: 7px;
   border: 1px solid #e7edf5;
   border-radius: 13px;
   background: #fbfdff;
   padding: 11px;
+}
+
+.offer-summary span {
+  min-height: 34px;
 }
 
 .breakdown-list,
@@ -1160,6 +1169,11 @@ tbody tr.selected-row td {
   color: var(--color-amber);
 }
 
+.acceptance-badge.warning {
+  background: var(--color-amber-soft);
+  color: #b45309;
+}
+
 .acceptance-badge.low {
   background: var(--color-rose-soft);
   color: var(--color-rose);
@@ -1176,6 +1190,14 @@ tbody tr.selected-row td {
   margin-top: 12px;
 }
 
+.table-footnote {
+  margin-top: 10px;
+  color: #9a5b12;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .recruiter-card {
   margin-top: 16px;
 }
@@ -1190,6 +1212,34 @@ tbody tr.selected-row td {
 .department-table th,
 .department-table td {
   white-space: nowrap;
+}
+
+.department-card .table-wrap {
+  overflow-x: visible;
+}
+
+.department-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.department-table th,
+.department-table td {
+  padding: 10px 9px;
+  font-size: 12px;
+}
+
+.department-table th:first-child,
+.department-table td:first-child {
+  width: 44%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.department-table th:not(:first-child),
+.department-table td:not(:first-child) {
+  text-align: right;
+  width: 18%;
 }
 
 .sources-empty {
