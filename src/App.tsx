@@ -25,7 +25,8 @@ const DEFAULT_TIMING_SORT = "Без сортировки";
 const DEFAULT_TIMING_SLA = "Все";
 const DEFAULT_FUNNEL_STAGES = ["Отклики", "Скрининг", "Интервью", "Финал", "Оффер", "Выход"];
 const SHOW_DIAGNOSTICS = false;
-const CHART_COLORS = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#7c3aed", "#14b8a6", "#d97706", "#e11d48", "#64748b", "#0f766e"];
+const FUNNEL_CHART_COLORS = ["#1d4ed8", "#2563eb", "#38bdf8", "#bae6fd", "#4f46e5", "#0891b2"];
+const DEPARTMENT_CHART_COLORS = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#6366f1", "#818cf8", "#64748b", "#94a3b8", "#14b8a6", "#0ea5e9"];
 const STATUS_FILTERS = [
   DEFAULT_STATUS,
   "В работе",
@@ -378,6 +379,10 @@ const acceptanceRateClassName = (accepted: number, total: number) => {
     return "empty";
   }
 
+  if (accepted > total) {
+    return "warning";
+  }
+
   const rate = (accepted / total) * 100;
 
   if (rate >= 80) {
@@ -389,6 +394,18 @@ const acceptanceRateClassName = (accepted: number, total: number) => {
   }
 
   return "low";
+};
+
+const acceptanceRateLabel = (accepted: number, total: number) => {
+  if (total === 0) {
+    return "—";
+  }
+
+  if (accepted > total) {
+    return "100%*";
+  }
+
+  return percentOneDecimal(accepted, total);
 };
 
 const isActiveRecruiter = (name: string) => {
@@ -998,7 +1015,7 @@ function CurrentMvp({
   const funnelTotal = funnel.reduce((sum, item) => sum + item.count, 0);
   const funnelDonutBackground = buildConicGradient(
     funnel.map((item) => item.count),
-    CHART_COLORS
+    FUNNEL_CHART_COLORS
   );
 
   const declinedOffers = filteredOffers.filter((offer) => offer.status === "declined");
@@ -1130,7 +1147,7 @@ function CurrentMvp({
     }));
   const departmentDonutBackground = buildConicGradient(
     departmentRows.map((item) => item.vacancies),
-    CHART_COLORS
+    DEPARTMENT_CHART_COLORS
   );
 
   return (
@@ -1331,12 +1348,10 @@ function CurrentMvp({
                   <p className="metric-explain">Распределение кандидатов по этапам</p>
                 {funnel.map((item, index) => (
                   <div className="legend-row" key={item.stage}>
-                    <i style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                    <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
                     <div>
                       <span>{funnelStageLabel(item.stage)}</span>
-                      <strong>
-                        {item.count} · {percentOneDecimal(item.count, funnelTotal)}
-                      </strong>
+                      <strong>{percentOneDecimal(item.count, funnelTotal)}</strong>
                     </div>
                   </div>
                 ))}
@@ -1682,8 +1697,15 @@ function CurrentMvp({
                   <td>{recruiter.hfJobOffer}</td>
                   <td>{recruiter.hfOfferAccepted}</td>
                   <td>
-                    <span className={`acceptance-badge ${acceptanceRateClassName(recruiter.hfOfferAccepted, recruiter.hfJobOffer)}`}>
-                      {recruiter.hfJobOffer > 0 ? percentOneDecimal(recruiter.hfOfferAccepted, recruiter.hfJobOffer) : "—"}
+                    <span
+                      className={`acceptance-badge ${acceptanceRateClassName(recruiter.hfOfferAccepted, recruiter.hfJobOffer)}`}
+                      title={
+                        recruiter.hfOfferAccepted > recruiter.hfJobOffer
+                          ? "Принятых офферов больше, чем выставленных в этом срезе. Проверьте этапы Huntflow."
+                          : undefined
+                      }
+                    >
+                      {acceptanceRateLabel(recruiter.hfOfferAccepted, recruiter.hfJobOffer)}
                     </span>
                   </td>
                   <td>{recruiter.hhResponses}</td>
@@ -1695,6 +1717,10 @@ function CurrentMvp({
         </div>
 
         {recruiterWorkload.length === 0 && <p className="empty-state">Загрузите Excel, чтобы увидеть нагрузку рекрутеров.</p>}
+
+        {recruiterWorkload.some((recruiter) => recruiter.hfOfferAccepted > recruiter.hfJobOffer) && (
+          <p className="table-footnote">* Есть расхождение этапов: принятых офферов больше, чем выставленных.</p>
+        )}
 
         {recruiterWorkload.length > 5 && (
           <div className="table-actions">
@@ -1768,12 +1794,10 @@ function CurrentMvp({
               <div className="donut-legend scrollable-legend">
                 {departmentRows.map((department, index) => (
                   <div className="legend-row" key={department.name}>
-                    <i style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                    <i style={{ backgroundColor: DEPARTMENT_CHART_COLORS[index % DEPARTMENT_CHART_COLORS.length] }} />
                     <div>
                       <span>{department.name}</span>
-                      <strong>
-                        {department.vacancies} · {department.share}
-                      </strong>
+                      <strong>{department.share}</strong>
                     </div>
                   </div>
                 ))}
