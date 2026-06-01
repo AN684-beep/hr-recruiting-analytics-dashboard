@@ -25,6 +25,7 @@ const DEFAULT_TIMING_SORT = "Без сортировки";
 const DEFAULT_TIMING_SLA = "Все";
 const DEFAULT_FUNNEL_STAGES = ["Отклики", "Скрининг", "Интервью", "Финал", "Оффер", "Выход"];
 const SHOW_DIAGNOSTICS = false;
+const CHART_COLORS = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#7c3aed", "#14b8a6", "#d97706", "#e11d48", "#64748b", "#0f766e"];
 const STATUS_FILTERS = [
   DEFAULT_STATUS,
   "В работе",
@@ -248,6 +249,24 @@ const funnelStageLabel = (stage: string) => {
   };
 
   return labels[stage] || stage;
+};
+
+const buildConicGradient = (values: number[], colors: string[]) => {
+  const total = values.reduce((sum, value) => sum + value, 0);
+
+  if (total === 0) {
+    return "#e5edf6";
+  }
+
+  let start = 0;
+  const segments = values.map((value, index) => {
+    const end = start + (value / total) * 360;
+    const segment = `${colors[index % colors.length]} ${start}deg ${end}deg`;
+    start = end;
+    return segment;
+  });
+
+  return `conic-gradient(${segments.join(", ")})`;
 };
 
 const isHumanFriendlyRecruiterName = (value: string) => {
@@ -780,7 +799,7 @@ function CurrentMvp({
   const [showInactiveRecruiters, setShowInactiveRecruiters] = useState(false);
   const [showAllTimingRows, setShowAllTimingRows] = useState(false);
   const [funnelView, setFunnelView] = useState<"funnel" | "distribution">("funnel");
-  const [interviewTarget, setInterviewTarget] = useState<"final" | "offer" | "accepted">("final");
+  const [interviewTarget, setInterviewTarget] = useState<"offer" | "accepted">("offer");
   const [departmentView, setDepartmentView] = useState<"table" | "chart">("table");
   const [sourcesView, setSourcesView] = useState<"table" | "chart">("table");
 
@@ -808,7 +827,7 @@ function CurrentMvp({
     setShowInactiveRecruiters(false);
     setShowAllTimingRows(false);
     setFunnelView("funnel");
-    setInterviewTarget("final");
+    setInterviewTarget("offer");
     setDepartmentView("table");
     setSourcesView("table");
   };
@@ -874,25 +893,16 @@ function CurrentMvp({
     (sum, recruiter) => sum + recruiter.hfRecruiterInterview,
     0
   );
-  const recruiterFinalInterviews = recruiterFunnelRows.reduce(
-    (sum, recruiter) => sum + Math.max(recruiter.hfFinalInterview, recruiter.hfHiringManagerInterview),
-    0
-  );
   const interviewTargets = {
-    final: {
-      label: "Финальные интервью / интервью с нанимающим менеджером",
-      value: recruiterFinalInterviews,
-      subtitle: "Конверсия из интервью с рекрутером в финальный этап"
-    },
     offer: {
       label: "Офферы",
       value: recruiterFunnelOffers,
-      subtitle: "Конверсия из интервью с рекрутером в оффер"
+      subtitle: "Из интервью с рекрутером в оффер"
     },
     accepted: {
       label: "Принятые офферы",
       value: recruiterFunnelAcceptedOffers,
-      subtitle: "Конверсия из интервью с рекрутером в принятый оффер"
+      subtitle: "Из интервью с рекрутером в принятый оффер"
     }
   };
   const currentInterviewTarget = interviewTargets[interviewTarget];
@@ -906,12 +916,13 @@ function CurrentMvp({
   const criticalReviewIssues = reviewIssues.filter(
     (issue) => issue.severity.toLowerCase() === "critical"
   );
-  const dataQualityTone = !isExcelLoaded ? "neutral" : reviewIssues.length === 0 ? "success" : "warning";
-  const dataQualityCaption = !isExcelLoaded
-    ? "Файл еще не загружен"
-    : reviewIssues.length === 0
-      ? "Критичных ошибок и предупреждений нет"
-      : `warning: ${warningReviewIssues.length} · critical: ${criticalReviewIssues.length}`;
+  const dataQualityTone = !isExcelLoaded
+    ? "neutral"
+    : criticalReviewIssues.length > 0
+      ? "critical"
+      : reviewIssues.length === 0
+        ? "success"
+        : "warning";
 
   const showPreviousRisk = () => {
     if (riskyVacancies.length === 0) return;
@@ -985,6 +996,10 @@ function CurrentMvp({
 
   const maxFunnelCount = Math.max(...funnel.map((item) => item.count), 1);
   const funnelTotal = funnel.reduce((sum, item) => sum + item.count, 0);
+  const funnelDonutBackground = buildConicGradient(
+    funnel.map((item) => item.count),
+    CHART_COLORS
+  );
 
   const declinedOffers = filteredOffers.filter((offer) => offer.status === "declined");
   const declineReasons = Object.entries(groupByCount(declinedOffers, (offer) => offer.rejectReason))
@@ -1008,10 +1023,6 @@ function CurrentMvp({
     {
       label: "% закрытых в срок",
       value: percent(closedOnTime.length, closedVacancies.length)
-    },
-    {
-      label: "Средний срок выхода",
-      value: `${average(slaVacancies.map((vacancy) => vacancy.candidateStartDays))} дн.`
     }
   ];
 
@@ -1117,23 +1128,10 @@ function CurrentMvp({
       ...item,
       share: percentOneDecimal(item.vacancies, departmentTotal)
     }));
-  const departmentChartRows =
-    departmentRows.length > 8
-      ? [
-          ...departmentRows.slice(0, 8),
-          {
-            name: "Остальные",
-            vacancies: departmentRows.slice(8).reduce((sum, item) => sum + item.vacancies, 0),
-            active: departmentRows.slice(8).reduce((sum, item) => sum + item.active, 0),
-            closed: departmentRows.slice(8).reduce((sum, item) => sum + item.closed, 0),
-            share: percentOneDecimal(
-              departmentRows.slice(8).reduce((sum, item) => sum + item.vacancies, 0),
-              departmentTotal
-            )
-          }
-        ]
-      : departmentRows;
-  const maxDepartmentVacancies = Math.max(...departmentChartRows.map((item) => item.vacancies), 1);
+  const departmentDonutBackground = buildConicGradient(
+    departmentRows.map((item) => item.vacancies),
+    CHART_COLORS
+  );
 
   return (
     <main className="dashboard dashboard-shell">
@@ -1164,6 +1162,32 @@ function CurrentMvp({
           </label>
         </div>
       </header>
+
+      <section className={`data-quality-strip ${dataQualityTone}`} aria-label="Качество данных">
+        <div>
+          <strong>
+            {!isExcelLoaded
+              ? "Качество данных: ожидает файл"
+              : criticalReviewIssues.length > 0
+                ? "Качество данных: есть ошибки"
+                : warningReviewIssues.length > 0
+                  ? "Качество данных: нужна проверка"
+                  : "Качество данных: ОК"}
+          </strong>
+          <span>
+            {!isExcelLoaded
+              ? "Загрузите Excel, чтобы увидеть результаты проверки"
+              : criticalReviewIssues.length > 0
+                ? `critical: ${criticalReviewIssues.length} · warning: ${warningReviewIssues.length}`
+                : warningReviewIssues.length > 0
+                  ? `warning: ${warningReviewIssues.length}`
+                  : "Ошибок и предупреждений нет"}
+          </span>
+        </div>
+        {reviewIssues.length > 0 && (
+          <small>{reviewIssues[0].vacancy} — {reviewIssues[0].reason || reviewIssues[0].issueType}</small>
+        )}
+      </section>
 
       {SHOW_DIAGNOSTICS && (
         <DiagnosticsBlock activePrototype="Current MVP" isLoaded={isExcelLoaded} data={dashboardData} />
@@ -1295,24 +1319,28 @@ function CurrentMvp({
                 ))}
               </div>
             ) : (
-              <div className="distribution-list">
-                <p className="metric-explain">Распределение кандидатов по этапам</p>
-                {funnel.map((item) => (
-                  <div className="distribution-row" key={item.stage}>
-                    <div className="distribution-label">
+              <div className="donut-panel">
+                <div
+                  className="donut-chart"
+                  style={{ background: funnelDonutBackground }}
+                  aria-label="Распределение кандидатов по этапам"
+                >
+                  <span>{funnelTotal}</span>
+                </div>
+                <div className="donut-legend">
+                  <p className="metric-explain">Распределение кандидатов по этапам</p>
+                {funnel.map((item, index) => (
+                  <div className="legend-row" key={item.stage}>
+                    <i style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                    <div>
                       <span>{funnelStageLabel(item.stage)}</span>
                       <strong>
                         {item.count} · {percentOneDecimal(item.count, funnelTotal)}
                       </strong>
                     </div>
-                    <div className="distribution-track">
-                      <div
-                        className="distribution-bar"
-                        style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
-                      />
-                    </div>
                   </div>
                 ))}
+                </div>
               </div>
             )}
           </article>
@@ -1373,7 +1401,7 @@ function CurrentMvp({
                     <option key={option}>{option}</option>
                   ))}
                 </select>
-                {!timingRowsHaveDates && <small>Нет дат в файле</small>}
+                {!timingRowsHaveDates && <small>Даты появятся после обновления файла данных</small>}
               </label>
 
               <label>
@@ -1493,17 +1521,10 @@ function CurrentMvp({
             <div className="section-heading with-controls">
               <div>
                 <h2>Первички →</h2>
-                <span>{currentInterviewTarget.subtitle}</span>
+                <span>Конверсия из интервью с рекрутером</span>
               </div>
 
               <div className="segmented-control compact" aria-label="Цель конверсии первичек">
-                <button
-                  type="button"
-                  className={interviewTarget === "final" ? "active" : ""}
-                  onClick={() => setInterviewTarget("final")}
-                >
-                  К финалу
-                </button>
                 <button
                   type="button"
                   className={interviewTarget === "offer" ? "active" : ""}
@@ -1542,6 +1563,7 @@ function CurrentMvp({
                 </div>
               </div>
             )}
+            <p className="metric-explain">{currentInterviewTarget.subtitle}</p>
           </article>
 
           <article className="section-card risks-card">
@@ -1597,42 +1619,6 @@ function CurrentMvp({
                 </>
               )}
             </div>
-          </article>
-
-          <article className={`data-quality-alert section-card ${dataQualityTone}`}>
-            <div className="alert-heading">
-              <div>
-                <h2>Качество данных</h2>
-                <span>{dataQualityCaption}</span>
-              </div>
-            </div>
-
-            {!isExcelLoaded ? (
-              <p>
-                <strong>Данные не загружены</strong>
-                <span>Загрузите Excel, чтобы увидеть результаты проверки данных.</span>
-              </p>
-            ) : reviewIssues.length === 0 ? (
-              <p>
-                <strong>Данные готовы к работе</strong>
-                <span>Критичных ошибок и предупреждений нет</span>
-              </p>
-            ) : (
-              <>
-                <p>
-                  <strong>Нужна проверка данных</strong>
-                  <span>Показаны предупреждения и критичные проверки из файла.</span>
-                </p>
-                <div className="review-list">
-                  {reviewIssues.slice(0, 4).map((issue, index) => (
-                    <div className="review-item" key={`${issue.issueType}-${issue.vacancy}-${index}`}>
-                      <strong>{issue.vacancy}</strong>
-                      <span>{issue.reason || issue.issueType}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
           </article>
         </aside>
       </section>
@@ -1756,7 +1742,6 @@ function CurrentMvp({
                     <th>Вакансии</th>
                     <th>Доля</th>
                     <th>В работе</th>
-                    <th>Закрыто</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1766,30 +1751,33 @@ function CurrentMvp({
                       <td>{department.vacancies}</td>
                       <td>{department.share}</td>
                       <td>{department.active}</td>
-                      <td>{department.closed}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <div className="department-chart">
-              {departmentChartRows.map((department) => (
-                <div className="department-chart-row" key={department.name}>
-                  <div className="department-chart-label">
-                    <span>{department.name}</span>
-                    <strong>
-                      {department.vacancies} · {department.share}
-                    </strong>
+            <div className="donut-panel department-donut-panel">
+              <div
+                className="donut-chart"
+                style={{ background: departmentDonutBackground }}
+                aria-label="Распределение заявок по департаментам"
+              >
+                <span>{departmentTotal}</span>
+              </div>
+              <div className="donut-legend scrollable-legend">
+                {departmentRows.map((department, index) => (
+                  <div className="legend-row" key={department.name}>
+                    <i style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                    <div>
+                      <span>{department.name}</span>
+                      <strong>
+                        {department.vacancies} · {department.share}
+                      </strong>
+                    </div>
                   </div>
-                  <div className="department-chart-track">
-                    <div
-                      className="department-chart-bar"
-                      style={{ width: `${(department.vacancies / maxDepartmentVacancies) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </article>
@@ -1820,9 +1808,8 @@ function CurrentMvp({
           </div>
 
           <div className="empty-state sources-empty">
-            <strong>Будет подключено после добавления отчета Huntflow по источникам</strong>
             <span>
-              В текущем файле нет данных по источникам кандидатов. После подключения отчета здесь появятся таблица и диаграмма по каналам.
+              В текущем файле нет данных по источникам кандидатов. После подключения отчета Huntflow здесь появятся таблица и диаграмма по каналам.
             </span>
           </div>
         </article>
