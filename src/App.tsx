@@ -237,7 +237,18 @@ const daysBetween = (start: unknown, end: unknown) => {
 const uniqueNonEmpty = (values: string[]) =>
   Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 
+const normalizeTextKey = (value: string) => value.trim().toLowerCase().replaceAll("ё", "е");
+
 const normalizeRecruiterKey = (value: string) => value.trim().toLowerCase().replaceAll("ё", "е");
+
+const funnelStageLabel = (stage: string) => {
+  const labels: Record<string, string> = {
+    Отклики: "Отклики / новые",
+    Выход: "Выход / принят оффер"
+  };
+
+  return labels[stage] || stage;
+};
 
 const isHumanFriendlyRecruiterName = (value: string) => {
   const trimmed = value.trim();
@@ -768,6 +779,10 @@ function CurrentMvp({
   const [showAllRecruiters, setShowAllRecruiters] = useState(false);
   const [showInactiveRecruiters, setShowInactiveRecruiters] = useState(false);
   const [showAllTimingRows, setShowAllTimingRows] = useState(false);
+  const [funnelView, setFunnelView] = useState<"funnel" | "distribution">("funnel");
+  const [interviewTarget, setInterviewTarget] = useState<"final" | "offer" | "accepted">("final");
+  const [departmentView, setDepartmentView] = useState<"table" | "chart">("table");
+  const [sourcesView, setSourcesView] = useState<"table" | "chart">("table");
 
   const {
     candidates,
@@ -792,6 +807,10 @@ function CurrentMvp({
     setShowAllRecruiters(false);
     setShowInactiveRecruiters(false);
     setShowAllTimingRows(false);
+    setFunnelView("funnel");
+    setInterviewTarget("final");
+    setDepartmentView("table");
+    setSourcesView("table");
   };
 
   const availableTeams = useMemo(() => {
@@ -859,6 +878,40 @@ function CurrentMvp({
     (sum, recruiter) => sum + Math.max(recruiter.hfFinalInterview, recruiter.hfHiringManagerInterview),
     0
   );
+  const interviewTargets = {
+    final: {
+      label: "Финальные интервью / интервью с нанимающим менеджером",
+      value: recruiterFinalInterviews,
+      subtitle: "Конверсия из интервью с рекрутером в финальный этап"
+    },
+    offer: {
+      label: "Офферы",
+      value: recruiterFunnelOffers,
+      subtitle: "Конверсия из интервью с рекрутером в оффер"
+    },
+    accepted: {
+      label: "Принятые офферы",
+      value: recruiterFunnelAcceptedOffers,
+      subtitle: "Конверсия из интервью с рекрутером в принятый оффер"
+    }
+  };
+  const currentInterviewTarget = interviewTargets[interviewTarget];
+  const interviewConversion =
+    recruiterPrimaryInterviews > 0
+      ? percentOneDecimal(currentInterviewTarget.value, recruiterPrimaryInterviews)
+      : "—";
+  const warningReviewIssues = reviewIssues.filter(
+    (issue) => issue.severity.toLowerCase() === "warning"
+  );
+  const criticalReviewIssues = reviewIssues.filter(
+    (issue) => issue.severity.toLowerCase() === "critical"
+  );
+  const dataQualityTone = !isExcelLoaded ? "neutral" : reviewIssues.length === 0 ? "success" : "warning";
+  const dataQualityCaption = !isExcelLoaded
+    ? "Файл еще не загружен"
+    : reviewIssues.length === 0
+      ? "Критичных ошибок и предупреждений нет"
+      : `warning: ${warningReviewIssues.length} · critical: ${criticalReviewIssues.length}`;
 
   const showPreviousRisk = () => {
     if (riskyVacancies.length === 0) return;
@@ -931,6 +984,7 @@ function CurrentMvp({
   });
 
   const maxFunnelCount = Math.max(...funnel.map((item) => item.count), 1);
+  const funnelTotal = funnel.reduce((sum, item) => sum + item.count, 0);
 
   const declinedOffers = filteredOffers.filter((offer) => offer.status === "declined");
   const declineReasons = Object.entries(groupByCount(declinedOffers, (offer) => offer.rejectReason))
@@ -1035,6 +1089,51 @@ function CurrentMvp({
     });
 
   const displayedRecruiterWorkload = showAllRecruiters ? recruiterWorkload : recruiterWorkload.slice(0, 5);
+  const departmentStatsByKey = new Map<
+    string,
+    { name: string; vacancies: number; active: number; closed: number }
+  >();
+
+  filteredVacancies.forEach((vacancy) => {
+    const displayName = vacancy.department || "Не указан";
+    const key = normalizeTextKey(displayName || "Не указан") || "не указан";
+    const current = departmentStatsByKey.get(key) || {
+      name: displayName,
+      vacancies: 0,
+      active: 0,
+      closed: 0
+    };
+
+    current.vacancies += 1;
+    current.active += isActiveStatus(vacancy.status) ? 1 : 0;
+    current.closed += isClosedStatus(vacancy.status) ? 1 : 0;
+    departmentStatsByKey.set(key, current);
+  });
+
+  const departmentTotal = filteredVacancies.length;
+  const departmentRows = Array.from(departmentStatsByKey.values())
+    .sort((first, second) => second.vacancies - first.vacancies)
+    .map((item) => ({
+      ...item,
+      share: percentOneDecimal(item.vacancies, departmentTotal)
+    }));
+  const departmentChartRows =
+    departmentRows.length > 8
+      ? [
+          ...departmentRows.slice(0, 8),
+          {
+            name: "Остальные",
+            vacancies: departmentRows.slice(8).reduce((sum, item) => sum + item.vacancies, 0),
+            active: departmentRows.slice(8).reduce((sum, item) => sum + item.active, 0),
+            closed: departmentRows.slice(8).reduce((sum, item) => sum + item.closed, 0),
+            share: percentOneDecimal(
+              departmentRows.slice(8).reduce((sum, item) => sum + item.vacancies, 0),
+              departmentTotal
+            )
+          }
+        ]
+      : departmentRows;
+  const maxDepartmentVacancies = Math.max(...departmentChartRows.map((item) => item.vacancies), 1);
 
   return (
     <main className="dashboard dashboard-shell">
@@ -1153,30 +1252,69 @@ function CurrentMvp({
       <section className="two-column-layout">
         <div className="main-column">
           <article className="section-card funnel-card">
-            <div className="section-heading">
+            <div className="section-heading with-controls">
               <div>
                 <h2>Воронка подбора</h2>
-                <span>С учетом фильтров, кроме статуса вакансии</span>
+                <span>По выбранному рекрутеру / департаменту / отделу за период</span>
+              </div>
+
+              <div className="segmented-control" aria-label="Вид воронки">
+                <button
+                  type="button"
+                  className={funnelView === "funnel" ? "active" : ""}
+                  onClick={() => setFunnelView("funnel")}
+                >
+                  Воронка
+                </button>
+                <button
+                  type="button"
+                  className={funnelView === "distribution" ? "active" : ""}
+                  onClick={() => setFunnelView("distribution")}
+                >
+                  Распределение
+                </button>
               </div>
             </div>
 
-            <div className="funnel-list">
-              {funnel.map((item) => (
-                <div className="funnel-row" key={item.stage}>
-                  <div className="funnel-label">
-                    <span>{item.stage}</span>
-                    <strong>{item.count}</strong>
-                    <small>{item.conversion}</small>
+            {funnelView === "funnel" ? (
+              <div className="funnel-list">
+                {funnel.map((item) => (
+                  <div className="funnel-row" key={item.stage}>
+                    <div className="funnel-label">
+                      <span>{funnelStageLabel(item.stage)}</span>
+                      <strong>{item.count}</strong>
+                      <small>{item.conversion}</small>
+                    </div>
+                    <div className="funnel-track">
+                      <div
+                        className="funnel-bar"
+                        style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="funnel-track">
-                    <div
-                      className="funnel-bar"
-                      style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
-                    />
+                ))}
+              </div>
+            ) : (
+              <div className="distribution-list">
+                <p className="metric-explain">Распределение кандидатов по этапам</p>
+                {funnel.map((item) => (
+                  <div className="distribution-row" key={item.stage}>
+                    <div className="distribution-label">
+                      <span>{funnelStageLabel(item.stage)}</span>
+                      <strong>
+                        {item.count} · {percentOneDecimal(item.count, funnelTotal)}
+                      </strong>
+                    </div>
+                    <div className="distribution-track">
+                      <div
+                        className="distribution-bar"
+                        style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </article>
 
           <article className="section-card sla-card">
@@ -1352,15 +1490,42 @@ function CurrentMvp({
           </article>
 
           <article className="section-card interview-card">
-            <div className="section-heading">
+            <div className="section-heading with-controls">
               <div>
-                <h2>Первички → финалы</h2>
-                <span>Конверсия из интервью с рекрутером в финальный этап</span>
+                <h2>Первички →</h2>
+                <span>{currentInterviewTarget.subtitle}</span>
+              </div>
+
+              <div className="segmented-control compact" aria-label="Цель конверсии первичек">
+                <button
+                  type="button"
+                  className={interviewTarget === "final" ? "active" : ""}
+                  onClick={() => setInterviewTarget("final")}
+                >
+                  К финалу
+                </button>
+                <button
+                  type="button"
+                  className={interviewTarget === "offer" ? "active" : ""}
+                  onClick={() => setInterviewTarget("offer")}
+                >
+                  К офферу
+                </button>
+                <button
+                  type="button"
+                  className={interviewTarget === "accepted" ? "active" : ""}
+                  onClick={() => setInterviewTarget("accepted")}
+                >
+                  К принятому
+                </button>
               </div>
             </div>
 
             {recruiterPrimaryInterviews === 0 ? (
-              <p className="empty-state compact">Данных по первичным интервью пока нет.</p>
+              <div className="empty-state compact">
+                <strong>—</strong>
+                <span>Недостаточно данных для расчета</span>
+              </div>
             ) : (
               <div className="offer-summary">
                 <div>
@@ -1368,35 +1533,13 @@ function CurrentMvp({
                   <strong>{recruiterPrimaryInterviews}</strong>
                 </div>
                 <div>
-                  <span>Финальные этапы</span>
-                  <strong>{recruiterFinalInterviews}</strong>
+                  <span>{currentInterviewTarget.label}</span>
+                  <strong>{currentInterviewTarget.value}</strong>
                 </div>
                 <div>
                   <span>Конверсия</span>
-                  <strong>{percentOneDecimal(recruiterFinalInterviews, recruiterPrimaryInterviews)}</strong>
+                  <strong>{interviewConversion}</strong>
                 </div>
-              </div>
-            )}
-          </article>
-
-          <article className={`data-quality-alert section-card ${reviewIssues.length === 0 ? "success" : "warning"}`}>
-            <div className="alert-heading">
-              <div>
-                <h2>{reviewIssues.length === 0 ? "Критичных проблем нет" : "Нужна проверка"}</h2>
-                <span>{reviewIssues.length === 0 ? "warning и critical не найдены" : `${reviewIssues.length} warning`}</span>
-              </div>
-            </div>
-
-            {reviewIssues.length === 0 ? (
-              <p>Данные готовы к работе.</p>
-            ) : (
-              <div className="review-list">
-                {reviewIssues.slice(0, 4).map((issue, index) => (
-                  <div className="review-item" key={`${issue.issueType}-${issue.vacancy}-${index}`}>
-                    <strong>{issue.vacancy}</strong>
-                    <span>{issue.reason || issue.issueType}</span>
-                  </div>
-                ))}
               </div>
             )}
           </article>
@@ -1456,21 +1599,40 @@ function CurrentMvp({
             </div>
           </article>
 
-          <article className="section-card next-metrics-card">
-            <div className="section-heading">
+          <article className={`data-quality-alert section-card ${dataQualityTone}`}>
+            <div className="alert-heading">
               <div>
-                <h2>Следующие метрики</h2>
-                <span>Появятся после уточнения источников</span>
+                <h2>Качество данных</h2>
+                <span>{dataQualityCaption}</span>
               </div>
             </div>
 
-            <div className="next-metrics-list">
-              <span>Источники подбора — данные Huntflow, нужно подключение</span>
-              <span>Рекомендации — данные Huntflow, нужно подключение</span>
-              <span>Тестовые задания — нужно определить этапы кейсов / OnTarget</span>
-              <span>Качество подбора / прохождение ИС — нужен отдельный источник</span>
-              <span>Стоимость найма — расчет по итогам года</span>
-            </div>
+            {!isExcelLoaded ? (
+              <p>
+                <strong>Данные не загружены</strong>
+                <span>Загрузите Excel, чтобы увидеть результаты проверки данных.</span>
+              </p>
+            ) : reviewIssues.length === 0 ? (
+              <p>
+                <strong>Данные готовы к работе</strong>
+                <span>Критичных ошибок и предупреждений нет</span>
+              </p>
+            ) : (
+              <>
+                <p>
+                  <strong>Нужна проверка данных</strong>
+                  <span>Показаны предупреждения и критичные проверки из файла.</span>
+                </p>
+                <div className="review-list">
+                  {reviewIssues.slice(0, 4).map((issue, index) => (
+                    <div className="review-item" key={`${issue.issueType}-${issue.vacancy}-${index}`}>
+                      <strong>{issue.vacancy}</strong>
+                      <span>{issue.reason || issue.issueType}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </article>
         </aside>
       </section>
@@ -1555,6 +1717,115 @@ function CurrentMvp({
             </button>
           </div>
         )}
+      </section>
+
+      <section className="analytics-lower-grid" aria-label="Дополнительная аналитика">
+        <article className="section-card department-card">
+          <div className="section-heading with-controls">
+            <div>
+              <h2>Заявки по департаментам</h2>
+              <span>По текущему срезу вакансий</span>
+            </div>
+
+            <div className="segmented-control" aria-label="Вид заявок по департаментам">
+              <button
+                type="button"
+                className={departmentView === "table" ? "active" : ""}
+                onClick={() => setDepartmentView("table")}
+              >
+                Таблица
+              </button>
+              <button
+                type="button"
+                className={departmentView === "chart" ? "active" : ""}
+                onClick={() => setDepartmentView("chart")}
+              >
+                Диаграмма
+              </button>
+            </div>
+          </div>
+
+          {departmentRows.length === 0 ? (
+            <p className="empty-state">Загрузите Excel, чтобы увидеть распределение заявок.</p>
+          ) : departmentView === "table" ? (
+            <div className="table-wrap compact-table-wrap">
+              <table className="department-table">
+                <thead>
+                  <tr>
+                    <th>Департамент</th>
+                    <th>Вакансии</th>
+                    <th>Доля</th>
+                    <th>В работе</th>
+                    <th>Закрыто</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departmentRows.map((department) => (
+                    <tr key={department.name}>
+                      <td className="primary-cell">{department.name}</td>
+                      <td>{department.vacancies}</td>
+                      <td>{department.share}</td>
+                      <td>{department.active}</td>
+                      <td>{department.closed}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="department-chart">
+              {departmentChartRows.map((department) => (
+                <div className="department-chart-row" key={department.name}>
+                  <div className="department-chart-label">
+                    <span>{department.name}</span>
+                    <strong>
+                      {department.vacancies} · {department.share}
+                    </strong>
+                  </div>
+                  <div className="department-chart-track">
+                    <div
+                      className="department-chart-bar"
+                      style={{ width: `${(department.vacancies / maxDepartmentVacancies) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="section-card sources-card">
+          <div className="section-heading with-controls">
+            <div>
+              <h2>Источники кандидатов</h2>
+              <span>Будет подключено после добавления отчета Huntflow по источникам</span>
+            </div>
+
+            <div className="segmented-control" aria-label="Вид источников кандидатов">
+              <button
+                type="button"
+                className={sourcesView === "table" ? "active" : ""}
+                onClick={() => setSourcesView("table")}
+              >
+                Таблица
+              </button>
+              <button
+                type="button"
+                className={sourcesView === "chart" ? "active" : ""}
+                onClick={() => setSourcesView("chart")}
+              >
+                Диаграмма
+              </button>
+            </div>
+          </div>
+
+          <div className="empty-state sources-empty">
+            <strong>Будет подключено после добавления отчета Huntflow по источникам</strong>
+            <span>
+              В текущем файле нет данных по источникам кандидатов. После подключения отчета здесь появятся таблица и диаграмма по каналам.
+            </span>
+          </div>
+        </article>
       </section>
     </main>
   );
