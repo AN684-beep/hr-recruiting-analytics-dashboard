@@ -34,8 +34,8 @@ const DEFAULT_TIMING_SORT = "Без сортировки";
 const DEFAULT_TIMING_SLA = "Все";
 const DEFAULT_FUNNEL_STAGES = ["Отклики", "Скрининг", "Интервью", "Финал", "Оффер", "Выход"];
 const SHOW_DIAGNOSTICS = false;
-const FUNNEL_CHART_COLORS = ["#1d4ed8", "#2563eb", "#38bdf8", "#bae6fd", "#4f46e5", "#0891b2"];
-const DEPARTMENT_CHART_COLORS = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#6366f1", "#818cf8", "#64748b", "#94a3b8", "#14b8a6", "#0ea5e9"];
+const FUNNEL_CHART_COLORS = ["#2563eb", "#3b82f6", "#06b6d4", "#8b5cf6", "#f59e0b", "#10b981"];
+const DEPARTMENT_CHART_COLORS = ["#2563eb", "#8b5cf6", "#14b8a6", "#f59e0b", "#3b82f6", "#a78bfa", "#0ea5e9", "#10b981", "#64748b", "#ef4444", "#60a5fa", "#94a3b8", "#ec4899", "#93c5fd"];
 const STATUS_FILTERS = [
   DEFAULT_STATUS,
   "В работе",
@@ -1455,9 +1455,9 @@ function CurrentMvp({
                   <div className="funnel-row" key={item.stage}>
                     <div className="funnel-label">
                       <span>{funnelStageLabel(item.stage)}</span>
-                      <strong>{item.count}</strong>
                       <small>{item.conversion}</small>
                     </div>
+                    <strong className="funnel-value">{item.count}</strong>
                     <div className="funnel-track">
                       <div
                         className="funnel-bar"
@@ -1474,7 +1474,8 @@ function CurrentMvp({
                   style={{ background: funnelDonutBackground }}
                   aria-label="Распределение кандидатов по этапам"
                 >
-                  <span>{funnelTotal}</span>
+                  <span>100%</span>
+                  <small>распределение</small>
                 </div>
                 <div className="donut-legend">
                   <p className="metric-explain">Распределение кандидатов по этапам</p>
@@ -1927,7 +1928,8 @@ function CurrentMvp({
                 style={{ background: departmentDonutBackground }}
                 aria-label="Распределение заявок по департаментам"
               >
-                <span>{departmentTotal}</span>
+                <span>100%</span>
+                <small>срез</small>
               </div>
               <div className="donut-legend scrollable-legend">
                 {departmentRows.map((department, index) => (
@@ -2011,7 +2013,8 @@ function CurrentMvp({
                 style={{ background: sourcesDonutBackground }}
                 aria-label="Распределение кандидатов по источникам"
               >
-                <span>{sourceTotalCandidates}</span>
+                <span>100%</span>
+                <small>источники</small>
               </div>
               <div className="donut-legend scrollable-legend">
                 {sourceRows.map((source, index) => (
