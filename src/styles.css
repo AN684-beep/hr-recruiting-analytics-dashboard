@@ -560,16 +560,15 @@ p {
 
 .funnel-row {
   display: grid;
-  grid-template-columns: 178px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: minmax(180px, 220px) 86px minmax(0, 1fr);
+  gap: 16px;
   align-items: center;
 }
 
 .funnel-label {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 10px;
-  align-items: baseline;
+  gap: 4px;
+  align-items: center;
 }
 
 .funnel-label span {
@@ -578,21 +577,23 @@ p {
   font-weight: 800;
 }
 
-.funnel-label strong {
+.funnel-value {
   color: #101827;
   font-size: 18px;
+  font-weight: 900;
   text-align: right;
+  line-height: 1;
 }
 
 .funnel-label small {
-  grid-column: 1 / -1;
   color: #748196;
   font-size: 12px;
+  line-height: 1.2;
 }
 
 .funnel-track {
   overflow: hidden;
-  height: 10px;
+  height: 13px;
   border-radius: 999px;
   background: #e5edf6;
 }
@@ -836,7 +837,7 @@ p {
 
 .donut-panel {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
   gap: 18px;
   align-items: center;
 }
@@ -844,8 +845,9 @@ p {
 .donut-chart {
   position: relative;
   display: grid;
-  place-items: center;
-  width: min(210px, 100%);
+  align-content: center;
+  justify-items: center;
+  width: min(230px, 100%);
   aspect-ratio: 1;
   border-radius: 50%;
   box-shadow:
@@ -862,18 +864,32 @@ p {
   box-shadow: inset 0 0 0 1px rgba(219, 227, 238, 0.82);
 }
 
-.donut-chart span {
+.donut-chart span,
+.donut-chart small {
   position: relative;
   z-index: 1;
+  display: block;
+  text-align: center;
+}
+
+.donut-chart span {
   color: #101827;
   font-size: 24px;
   font-weight: 900;
   line-height: 1;
 }
 
+.donut-chart small {
+  margin-top: 5px;
+  color: #66758a;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .donut-legend {
   display: grid;
-  gap: 9px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -912,8 +928,8 @@ p {
 }
 
 .scrollable-legend {
-  max-height: 260px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding-right: 4px;
 }
 
@@ -1219,7 +1235,23 @@ tbody tr.selected-row td {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  align-items: stretch;
   margin-top: 16px;
+}
+
+.analytics-lower-grid > .section-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 440px;
+}
+
+.analytics-lower-grid .donut-panel {
+  align-self: center;
+}
+
+.analytics-lower-grid .table-wrap,
+.analytics-lower-grid .empty-state {
+  align-self: start;
 }
 
 .department-table th,
@@ -1260,6 +1292,8 @@ tbody tr.selected-row td {
 
 .sources-table-wrap {
   overflow-x: auto;
+  max-height: 360px;
+  align-self: start;
 }
 
 .sources-table {
@@ -1367,6 +1401,10 @@ tbody tr.selected-row td {
     gap: 8px;
   }
 
+  .funnel-value {
+    text-align: left;
+  }
+
   .section-heading,
   .section-heading.compact,
   .section-heading.with-controls {
@@ -1392,6 +1430,10 @@ tbody tr.selected-row td {
 
   .donut-panel {
     grid-template-columns: 1fr;
+  }
+
+  .analytics-lower-grid > .section-card {
+    min-height: auto;
   }
 
   .donut-chart {
