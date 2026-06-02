@@ -1234,24 +1234,37 @@ tbody tr.selected-row td {
 .analytics-lower-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 24px;
   align-items: stretch;
   margin-top: 16px;
 }
 
 .analytics-lower-grid > .section-card {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 440px;
+  display: flex;
+  flex-direction: column;
+  min-height: 450px;
+  max-height: 450px;
+  overflow: hidden;
 }
 
 .analytics-lower-grid .donut-panel {
-  align-self: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-self: stretch;
+  align-content: center;
+  overflow: auto;
 }
 
 .analytics-lower-grid .table-wrap,
 .analytics-lower-grid .empty-state {
-  align-self: start;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-self: stretch;
+}
+
+.analytics-lower-grid .table-wrap {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .department-table th,
@@ -1260,7 +1273,7 @@ tbody tr.selected-row td {
 }
 
 .department-card .table-wrap {
-  overflow-x: visible;
+  overflow-x: hidden;
 }
 
 .department-table,
@@ -1291,13 +1304,12 @@ tbody tr.selected-row td {
 }
 
 .sources-table-wrap {
-  overflow-x: auto;
-  max-height: 360px;
-  align-self: start;
+  overflow-x: hidden;
+  max-height: none;
 }
 
 .sources-table {
-  min-width: 620px;
+  min-width: 0;
 }
 
 .sources-table th:first-child,
@@ -1434,6 +1446,7 @@ tbody tr.selected-row td {
 
   .analytics-lower-grid > .section-card {
     min-height: auto;
+    max-height: none;
   }
 
   .donut-chart {
