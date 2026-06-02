@@ -32,10 +32,22 @@ const DEFAULT_RECRUITER = "Все рекрутеры";
 const DEFAULT_STATUS = "Все статусы";
 const DEFAULT_TIMING_SORT = "Без сортировки";
 const DEFAULT_TIMING_SLA = "Все";
-const DEFAULT_FUNNEL_STAGES = ["Отклики", "Скрининг", "Интервью", "Финал", "Оффер", "Выход"];
 const SHOW_DIAGNOSTICS = false;
 const FUNNEL_CHART_COLORS = ["#2563eb", "#3b82f6", "#06b6d4", "#8b5cf6", "#f59e0b", "#10b981"];
 const DEPARTMENT_CHART_COLORS = ["#2563eb", "#8b5cf6", "#14b8a6", "#f59e0b", "#3b82f6", "#a78bfa", "#0ea5e9", "#10b981", "#64748b", "#ef4444", "#60a5fa", "#94a3b8", "#ec4899", "#93c5fd"];
+// TODO(builder): replace this frontend fallback with a dedicated funnel_stages sheet
+// containing real Huntflow stage names, order, counts and optional dimensions.
+const HUNTFLOW_FUNNEL_STAGES = [
+  "Новые",
+  "Отправлено письмо/сообщение",
+  "Интервью с рекрутером",
+  "Интервью с рекрутером / тех. скрининг",
+  "Собеседование с нанимающим менеджером",
+  "Собеседование с тех. экспертом",
+  "Финальное интервью",
+  "Job offer",
+  "Оффер принят"
+];
 const STATUS_FILTERS = [
   DEFAULT_STATUS,
   "В работе",
@@ -70,6 +82,7 @@ type Vacancy = {
   openDate: number;
   openDateDisplay: string;
   closeDateDisplay: string;
+  funnelStages: Record<string, number>;
   isRisk: boolean;
   riskReason: string;
   riskLevel: string;
@@ -278,15 +291,6 @@ const normalizeTextKey = (value: string) => value.trim().toLowerCase().replaceAl
 
 const normalizeRecruiterKey = (value: string) => value.trim().toLowerCase().replaceAll("ё", "е");
 
-const funnelStageLabel = (stage: string) => {
-  const labels: Record<string, string> = {
-    Отклики: "Отклики / новые",
-    Выход: "Выход / принят оффер"
-  };
-
-  return labels[stage] || stage;
-};
-
 const buildConicGradient = (values: number[], colors: string[]) => {
   const total = values.reduce((sum, value) => sum + value, 0);
 
@@ -489,27 +493,6 @@ const getRiskInfo = (row: ExcelRow, status: string) => {
   return { isRisk: false, riskReason: "", riskLevel: "low", riskLevelLabel: "Низкий" };
 };
 
-const addRepeatedCandidates = (
-  target: Candidate[],
-  count: number,
-  vacancyId: number,
-  stage: string,
-  source: string,
-  nextCandidateId: { value: number }
-) => {
-  const safeCount = Math.max(0, Math.round(count));
-
-  for (let index = 0; index < safeCount; index += 1) {
-    target.push({
-      id: nextCandidateId.value,
-      vacancyId,
-      stage,
-      source
-    });
-    nextCandidateId.value += 1;
-  }
-};
-
 const addRepeatedOffers = (
   target: Offer[],
   count: number,
@@ -669,7 +652,6 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
   const vacancies: Vacancy[] = [];
   const candidates: Candidate[] = [];
   const offers: Offer[] = [];
-  const nextCandidateId = { value: 1 };
   const nextOfferId = { value: 1 };
 
   vacancyRows.forEach((row, rowIndex) => {
@@ -696,6 +678,15 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     const daysToClose = actualCloseDays || (status === "closed" ? daysInWork : 0);
     const slaDays = targetCloseDays;
     const riskInfo = getRiskInfo(row, status);
+    const hfNew = asNumber(row.hf_new);
+    const hfMessages = asNumber(row.hf_messages);
+    const recruiterInterviews = asNumber(row.hf_recruiter_interview);
+    const recruiterInterviewsOrTech = asNumber(row.hf_recruiter_interview_or_tech_screening);
+    const hmInterviews = asNumber(row.hf_hiring_manager_interview);
+    const techInterviews = asNumber(row.hf_technical_interview);
+    const finalInterviews = asNumber(row.hf_final_interview);
+    const jobOffers = asNumber(row.hf_job_offer);
+    const offerAccepted = asNumber(row.hf_offer_accepted);
 
     vacancies.push({
       id,
@@ -715,39 +706,19 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       openDate: dateTimestamp(row.open_date || row.open_date_total),
       openDateDisplay: asText(row.open_date_display),
       closeDateDisplay: asText(row.close_date_display),
+      funnelStages: {
+        Новые: hfNew,
+        "Отправлено письмо/сообщение": hfMessages,
+        "Интервью с рекрутером": recruiterInterviews,
+        "Интервью с рекрутером / тех. скрининг": recruiterInterviewsOrTech,
+        "Собеседование с нанимающим менеджером": hmInterviews,
+        "Собеседование с тех. экспертом": techInterviews,
+        "Финальное интервью": finalInterviews,
+        "Job offer": jobOffers,
+        "Оффер принят": offerAccepted
+      },
       ...riskInfo
     });
-
-    const hfNew = asNumber(row.hf_new);
-    const hfMessages = asNumber(row.hf_messages);
-    const recruiterInterviews = asNumber(row.hf_recruiter_interview);
-    const recruiterInterviewsOrTech = asNumber(row.hf_recruiter_interview_or_tech_screening);
-    const hmInterviews = asNumber(row.hf_hiring_manager_interview);
-    const techInterviews = asNumber(row.hf_technical_interview);
-    const finalInterviews = asNumber(row.hf_final_interview);
-    const jobOffers = asNumber(row.hf_job_offer);
-    const offerAccepted = asNumber(row.hf_offer_accepted);
-    const screeningTotal = Math.max(hfMessages, recruiterInterviews);
-    const interviewTotal = Math.max(
-      recruiterInterviews,
-      recruiterInterviewsOrTech,
-      hmInterviews,
-      techInterviews
-    );
-    const finalTotal = Math.max(finalInterviews, Math.min(hmInterviews, interviewTotal));
-    const exitCount = offerAccepted;
-    const offerCount = Math.max(jobOffers - exitCount, 0);
-    const finalCount = Math.max(finalTotal - jobOffers, 0);
-    const interviewCount = Math.max(interviewTotal - finalTotal, 0);
-    const screeningCount = Math.max(screeningTotal - interviewTotal, 0);
-    const responseOnlyCount = Math.max(hfNew - screeningTotal, 0);
-
-    addRepeatedCandidates(candidates, responseOnlyCount, id, "Отклики", "Huntflow", nextCandidateId);
-    addRepeatedCandidates(candidates, screeningCount, id, "Скрининг", "Huntflow", nextCandidateId);
-    addRepeatedCandidates(candidates, interviewCount, id, "Интервью", "Huntflow", nextCandidateId);
-    addRepeatedCandidates(candidates, finalCount, id, "Финал", "Huntflow", nextCandidateId);
-    addRepeatedCandidates(candidates, offerCount, id, "Оффер", "Huntflow", nextCandidateId);
-    addRepeatedCandidates(candidates, exitCount, id, "Выход", "Huntflow", nextCandidateId);
 
     addRepeatedOffers(offers, offerAccepted, id, "accepted", "", nextOfferId);
     addRepeatedOffers(offers, Math.max(jobOffers - offerAccepted, 0), id, "declined", "Не перешли в “Оффер принят”", nextOfferId);
@@ -826,7 +797,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     vacancies,
     candidates,
     offers,
-    funnelStages: DEFAULT_FUNNEL_STAGES,
+    funnelStages: HUNTFLOW_FUNNEL_STAGES,
     sourcesSummary: buildSourceSummary(cvSourceRows),
     sourcesByVacancy: [],
     dataQuality: buildDataQualitySummary(dataQualityRows),
@@ -892,7 +863,6 @@ function CurrentMvp({
   const [sourcesView, setSourcesView] = useState<"table" | "chart">("table");
 
   const {
-    candidates,
     departments,
     funnelStages,
     offers,
@@ -951,10 +921,6 @@ function CurrentMvp({
   const filteredVacancies = funnelFilteredVacancies;
 
   const filteredVacancyIds = filteredVacancies.map((vacancy) => vacancy.id);
-  const funnelFilteredVacancyIds = funnelFilteredVacancies.map((vacancy) => vacancy.id);
-  const funnelFilteredCandidates = candidates.filter((candidate) =>
-    funnelFilteredVacancyIds.includes(candidate.vacancyId)
-  );
   const filteredOffers = offers.filter((offer) => filteredVacancyIds.includes(offer.vacancyId));
 
   const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
@@ -1102,23 +1068,17 @@ function CurrentMvp({
     }
   ];
 
-  const funnel = funnelStages.map((stage, index) => {
-    const count = funnelFilteredCandidates.filter(
-      (candidate) => funnelStages.indexOf(candidate.stage) >= index
-    ).length;
-    const previousStage = funnelStages[index - 1];
-    const previousCount = previousStage
-      ? funnelFilteredCandidates.filter(
-          (candidate) => funnelStages.indexOf(candidate.stage) >= index - 1
-        ).length
-      : count;
-
-    return {
-      stage,
-      count,
-      conversion: index === 0 ? "100%" : percent(count, previousCount)
-    };
-  });
+  const funnelStageCounts = funnelStages.map((stage) => ({
+    stage,
+    count: funnelFilteredVacancies.reduce((sum, vacancy) => sum + (vacancy.funnelStages[stage] || 0), 0)
+  }));
+  const funnelBaseCount = funnelStageCounts.find((item) => item.stage === "Новые")?.count || funnelStageCounts[0]?.count || 0;
+  const funnel = funnelStageCounts
+    .filter((item) => item.count > 0)
+    .map((item) => ({
+      ...item,
+      conversion: item.stage === "Новые" ? "100%" : percentOneDecimal(item.count, funnelBaseCount)
+    }));
 
   const maxFunnelCount = Math.max(...funnel.map((item) => item.count), 1);
   const funnelTotal = funnel.reduce((sum, item) => sum + item.count, 0);
@@ -1428,7 +1388,7 @@ function CurrentMvp({
             <div className="section-heading with-controls">
               <div>
                 <h2>Воронка подбора</h2>
-                <span>По выбранному рекрутеру / департаменту / отделу за период</span>
+                <span>Этапы Huntflow по выбранному рекрутеру / департаменту / отделу · доля от “Новые”</span>
               </div>
 
               <div className="segmented-control" aria-label="Вид воронки">
@@ -1454,7 +1414,7 @@ function CurrentMvp({
                 {funnel.map((item) => (
                   <div className="funnel-row" key={item.stage}>
                     <div className="funnel-label">
-                      <span>{funnelStageLabel(item.stage)}</span>
+                      <span>{item.stage}</span>
                       <small>{item.conversion}</small>
                     </div>
                     <strong className="funnel-value">{item.count}</strong>
@@ -1483,7 +1443,7 @@ function CurrentMvp({
                   <div className="legend-row" key={item.stage}>
                     <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
                     <div>
-                      <span>{funnelStageLabel(item.stage)}</span>
+                      <span>{item.stage}</span>
                       <strong>{percentOneDecimal(item.count, funnelTotal)}</strong>
                     </div>
                   </div>
