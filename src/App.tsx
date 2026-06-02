@@ -7,6 +7,15 @@ const percent = (value: number, total: number) =>
 const percentOneDecimal = (value: number, total: number) =>
   total === 0 ? "0%" : `${((value / total) * 100).toFixed(1)}%`;
 
+const percentShare = (value: number, total: number) => {
+  if (total === 0 || value === 0) {
+    return "0%";
+  }
+
+  const calculated = (value / total) * 100;
+  return calculated < 0.1 ? "<0.1%" : `${calculated.toFixed(1)}%`;
+};
+
 const average = (values: number[]) =>
   values.length === 0 ? 0 : Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 
@@ -38,9 +47,7 @@ const STATUS_FILTERS = [
 const TIMING_SORT_OPTIONS = [
   DEFAULT_TIMING_SORT,
   "Сначала новые",
-  "Сначала старые",
-  "Недавно закрытые",
-  "Давно закрытые"
+  "Сначала старые"
 ];
 const TIMING_SLA_OPTIONS = [DEFAULT_TIMING_SLA, "В срок", "Просрочено", "Нет данных"];
 const ACTIVE_RECRUITERS = ["Алла", "Катя", "Маша", "Лена", "Настя"];
@@ -60,6 +67,9 @@ type Vacancy = {
   daysInWork: number;
   daysToClose: number;
   slaDays: number;
+  openDate: number;
+  openDateDisplay: string;
+  closeDateDisplay: string;
   isRisk: boolean;
   riskReason: string;
   riskLevel: string;
@@ -93,6 +103,15 @@ type DataQualityMetric = {
 
 type SourceSummaryItem = {
   source: string;
+  department: string;
+  team: string;
+  recruiter: string;
+  recruiterCanonical: string;
+  vacancyStatus: string;
+  matchStatus: string;
+  matchScope: string;
+  manualAction: string;
+  manualComment: string;
   count: number;
   messages: number;
   recruiterInterviews: number;
@@ -153,6 +172,7 @@ type DashboardData = {
   dataQuality: DataQualityMetric[];
   recruiterWorkload: RecruiterWorkloadItem[];
   reviewIssues: ReviewIssue[];
+  dataQualityValues: Record<string, number | string | boolean>;
 };
 
 type ExcelRow = Record<string, unknown>;
@@ -169,7 +189,8 @@ const EMPTY_DASHBOARD_DATA: DashboardData = {
   sourcesByVacancy: [],
   dataQuality: [],
   recruiterWorkload: [],
-  reviewIssues: []
+  reviewIssues: [],
+  dataQualityValues: {}
 };
 
 const asText = (value: unknown) => {
@@ -193,6 +214,15 @@ const asNumber = (value: unknown) => {
   const parsed = Number(normalized);
 
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const asBoolean = (value: unknown) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  const normalized = asText(value).toLowerCase();
+  return ["true", "1", "yes", "да"].includes(normalized);
 };
 
 const asValidDays = (value: unknown) => {
@@ -234,6 +264,11 @@ const daysBetween = (start: unknown, end: unknown) => {
 
   const diff = Math.round((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
   return asValidDays(diff);
+};
+
+const dateTimestamp = (value: unknown) => {
+  const date = asDate(value);
+  return date ? date.getTime() : 0;
 };
 
 const uniqueNonEmpty = (values: string[]) =>
@@ -510,34 +545,35 @@ const readWorksheet = (workbook: XLSX.WorkBook, sheetName: string) => {
 const buildSourceSummary = (rows: ExcelRow[]): SourceSummaryItem[] =>
   rows
     .map((row) => {
-      const source = normalizeCandidateSource(asText(row.candidate_source));
-      const count =
-        asNumber(row.source_new) ||
-        Math.max(
-          asNumber(row.source_messages),
-          asNumber(row.source_recruiter_interviews),
-          asNumber(row.source_hm_interviews),
-          asNumber(row.source_tech_interviews),
-          asNumber(row.source_final_interviews),
-          asNumber(row.source_job_offer),
-          asNumber(row.source_offer_accepted),
-          asNumber(row.source_rejections)
-        );
+      const source = asText(row.source_display_name) || asText(row.source_key) || "Не указано";
+      const recruiter = pickRecruiterDisplayName(
+        asText(row.recruiter_display_name),
+        asText(row.recruiter_canonical)
+      );
 
       return {
         source,
-        count,
+        department: asText(row.department) || "Не указано",
+        team: asText(row.division) || "Не указано",
+        recruiter,
+        recruiterCanonical: asText(row.recruiter_canonical),
+        vacancyStatus: normalizeStatus(asText(row.vacancy_lifecycle_status)),
+        matchStatus: asText(row.match_status),
+        matchScope: asText(row.source_match_scope),
+        manualAction: asText(row.manual_action),
+        manualComment: asText(row.manual_comment),
+        count: asNumber(row.source_new),
         messages: asNumber(row.source_messages),
-        recruiterInterviews: asNumber(row.source_recruiter_interviews),
-        hmInterviews: asNumber(row.source_hm_interviews),
-        techInterviews: asNumber(row.source_tech_interviews),
-        finalInterviews: asNumber(row.source_final_interviews),
+        recruiterInterviews: asNumber(row.source_recruiter_interview),
+        hmInterviews: asNumber(row.source_hiring_manager_interview),
+        techInterviews: 0,
+        finalInterviews: 0,
         offers: asNumber(row.source_job_offer),
         acceptedOffers: asNumber(row.source_offer_accepted),
-        rejections: asNumber(row.source_rejections)
+        rejections: asNumber(row.source_rejected)
       };
     })
-    .filter((item) => isBusinessCandidateSource(item.source))
+    .filter((item) => item.source.trim() !== "")
     .sort((first, second) => second.count - first.count);
 
 const buildSourcesByVacancy = (rows: ExcelRow[]): SourceByVacancyItem[] =>
@@ -558,6 +594,31 @@ const valueFromQualityRows = (rows: ExcelRow[], metric: string) => {
   const found = rows.find((row) => asText(row.metric) === metric);
   return asNumber(found?.value);
 };
+
+const buildDataQualityValues = (rows: ExcelRow[]) =>
+  rows.reduce<Record<string, number | string | boolean>>((result, row) => {
+    const metric = asText(row.metric);
+    const value = row.value;
+
+    if (!metric) {
+      return result;
+    }
+
+    const textValue = asText(value);
+    if (["true", "false"].includes(textValue.toLowerCase())) {
+      result[metric] = asBoolean(value);
+      return result;
+    }
+
+    const normalizedNumber = Number(textValue.replace(/\s/g, "").replace(",", ".").replace("%", ""));
+    if (textValue !== "" && Number.isFinite(normalizedNumber)) {
+      result[metric] = normalizedNumber;
+      return result;
+    }
+
+    result[metric] = textValue;
+    return result;
+  }, {});
 
 const formatNumber = (value: number) => Math.round(value).toLocaleString("ru-RU");
 
@@ -592,6 +653,12 @@ const buildDataQualitySummary = (rows: ExcelRow[]): DataQualityMetric[] => {
 const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData => {
   const vacancyRows = readWorksheet(workbook, "vacancies");
   const recruiterRows = readWorksheet(workbook, "recruiters");
+  const cvSourceRows = readWorksheet(workbook, "cv_sources");
+  readWorksheet(workbook, "cv_sources_summary");
+  readWorksheet(workbook, "hf_vacancy_registry");
+  readWorksheet(workbook, "total_hf_match_candidates");
+  readWorksheet(workbook, "hf_matching_review");
+  readWorksheet(workbook, "hf_unmatched_vacancies");
   const reviewRows = readWorksheet(workbook, "review");
   const dataQualityRows = readWorksheet(workbook, "data_quality");
 
@@ -620,7 +687,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       asValidDays(row.target_days_total) ||
       asValidDays(row.target_close_days) ||
       asValidDays(row.target_sla_days) ||
-      daysBetween(row.open_date_total, row.target_close_date_total);
+      daysBetween(row.open_date || row.open_date_total, row.target_close_date_total);
     const actualCloseDays = asValidDays(row.actual_close_days_total);
     if (status === "unknown" && actualCloseDays > 0) {
       status = "closed";
@@ -645,6 +712,9 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       daysInWork,
       daysToClose,
       slaDays,
+      openDate: dateTimestamp(row.open_date || row.open_date_total),
+      openDateDisplay: asText(row.open_date_display),
+      closeDateDisplay: asText(row.close_date_display),
       ...riskInfo
     });
 
@@ -757,11 +827,12 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     candidates,
     offers,
     funnelStages: DEFAULT_FUNNEL_STAGES,
-    sourcesSummary: [],
+    sourcesSummary: buildSourceSummary(cvSourceRows),
     sourcesByVacancy: [],
     dataQuality: buildDataQualitySummary(dataQualityRows),
     recruiterWorkload,
-    reviewIssues
+    reviewIssues,
+    dataQualityValues: buildDataQualityValues(dataQualityRows)
   };
 };
 
@@ -826,10 +897,12 @@ function CurrentMvp({
     funnelStages,
     offers,
     recruiters,
+    sourcesSummary,
     teams,
     vacancies,
     recruiterWorkload: recruiterWorkloadRows,
-    reviewIssues
+    reviewIssues,
+    dataQualityValues
   } = dashboardData;
 
   const resetFilters = () => {
@@ -933,13 +1006,52 @@ function CurrentMvp({
   const criticalReviewIssues = reviewIssues.filter(
     (issue) => issue.severity.toLowerCase() === "critical"
   );
+  const qualityNumber = (metric: string) => {
+    const value = dataQualityValues[metric];
+    return typeof value === "number" ? value : asNumber(value);
+  };
+  const qualityBoolean = (metric: string) => {
+    const value = dataQualityValues[metric];
+    return typeof value === "boolean" ? value : asBoolean(value);
+  };
+  const errorsCount = qualityNumber("errors_count");
+  const reviewWarningCount = qualityNumber("review_warning_count") || warningReviewIssues.length;
+  const reviewCriticalCount = qualityNumber("review_critical_count") || criticalReviewIssues.length;
+  const manualOverridesLoaded = qualityBoolean("manual_overrides_loaded");
+  const manualOverridesAppliedCount = qualityNumber("manual_overrides_applied_count");
+  const manualOverridesConflictCount = qualityNumber("manual_overrides_conflict_count");
+  const cvSourcesUnmatchedRowsCount = qualityNumber("cv_sources_unmatched_rows_count");
   const dataQualityTone = !isExcelLoaded
     ? "neutral"
-    : criticalReviewIssues.length > 0
+    : errorsCount > 0 || reviewCriticalCount > 0
       ? "critical"
-      : reviewIssues.length === 0
-        ? "success"
-        : "warning";
+      : !manualOverridesLoaded || reviewWarningCount > 0 || manualOverridesConflictCount > 0 || cvSourcesUnmatchedRowsCount > 0
+        ? "warning"
+        : "success";
+  const dataQualityTitle = !isExcelLoaded
+    ? "Качество данных: ожидает файл"
+    : errorsCount > 0 || reviewCriticalCount > 0
+      ? "Качество данных: есть ошибки"
+      : !manualOverridesLoaded
+        ? "Ручные правила не загружены"
+        : manualOverridesConflictCount > 0
+          ? `Есть конфликты ручных правил: ${manualOverridesConflictCount}`
+          : cvSourcesUnmatchedRowsCount > 0
+            ? `Есть несопоставленные источники: ${cvSourcesUnmatchedRowsCount}`
+            : reviewWarningCount > 0
+              ? "Качество данных: нужна проверка"
+              : "Качество данных: ОК";
+  const dataQualitySubtitle = !isExcelLoaded
+    ? "Загрузите Excel, чтобы увидеть результаты проверки"
+    : errorsCount > 0 || reviewCriticalCount > 0
+      ? `errors: ${errorsCount} · critical: ${reviewCriticalCount}`
+      : !manualOverridesLoaded
+        ? "Некоторые спорные вакансии могут не сопоставиться"
+        : reviewWarningCount > 0
+          ? `warning: ${reviewWarningCount}`
+          : manualOverridesAppliedCount > 0
+            ? `Ошибок, предупреждений и несматченных источников нет · ручные правила применены: ${manualOverridesAppliedCount}`
+            : "Ошибок, предупреждений и несматченных источников нет";
 
   const showPreviousRisk = () => {
     if (riskyVacancies.length === 0) return;
@@ -984,12 +1096,9 @@ function CurrentMvp({
     },
     {
       label: "Принятие офферов",
-      value:
-        recruiterFunnelOffers > 0
-          ? percentOneDecimal(recruiterFunnelAcceptedOffers, recruiterFunnelOffers)
-          : "—",
+      value: acceptanceRateLabel(recruiterFunnelAcceptedOffers, recruiterFunnelOffers),
       hint: "По полной воронке Huntflow",
-      tone: "closed"
+      tone: recruiterFunnelAcceptedOffers > recruiterFunnelOffers ? "paused" : "closed"
     }
   ];
 
@@ -1016,6 +1125,44 @@ function CurrentMvp({
   const funnelDonutBackground = buildConicGradient(
     funnel.map((item) => item.count),
     FUNNEL_CHART_COLORS
+  );
+  const filteredSourceRows = sourcesSummary.filter((source) => {
+    const departmentMatch = selectedDepartment === DEFAULT_DEPARTMENT || source.department === selectedDepartment;
+    const teamMatch = selectedTeam === DEFAULT_TEAM || source.team === selectedTeam;
+    const recruiterMatch =
+      selectedRecruiter === DEFAULT_RECRUITER ||
+      source.recruiter === selectedRecruiter ||
+      source.recruiterCanonical === selectedRecruiter;
+
+    return departmentMatch && teamMatch && recruiterMatch;
+  });
+  const sourceRowsByName = new Map<
+    string,
+    { source: string; candidates: number; interviews: number; offers: number; accepted: number }
+  >();
+  filteredSourceRows.forEach((source) => {
+    const key = source.source || "Не указано";
+    const current = sourceRowsByName.get(key) || {
+      source: key,
+      candidates: 0,
+      interviews: 0,
+      offers: 0,
+      accepted: 0
+    };
+
+    current.candidates += source.count;
+    current.interviews += source.recruiterInterviews;
+    current.offers += source.offers;
+    current.accepted += source.acceptedOffers;
+    sourceRowsByName.set(key, current);
+  });
+  const sourceRows = Array.from(sourceRowsByName.values())
+    .filter((source) => source.candidates > 0 || source.interviews > 0 || source.offers > 0 || source.accepted > 0)
+    .sort((first, second) => second.candidates - first.candidates);
+  const sourceTotalCandidates = sourceRows.reduce((sum, source) => sum + source.candidates, 0);
+  const sourcesDonutBackground = buildConicGradient(
+    sourceRows.map((source) => source.candidates),
+    DEPARTMENT_CHART_COLORS
   );
 
   const declinedOffers = filteredOffers.filter((offer) => offer.status === "declined");
@@ -1065,11 +1212,14 @@ function CurrentMvp({
       targetDays,
       actualDays,
       deviation,
-      status: timingStatus
+      status: timingStatus,
+      openDate: vacancy.openDate,
+      openDateDisplay: vacancy.openDateDisplay,
+      closeDateDisplay: vacancy.closeDateDisplay
     };
   });
 
-  const timingRowsHaveDates = false;
+  const timingRowsHaveDates = timingRows.some((row) => row.openDate > 0);
   const filteredTimingRows = timingRows
     .filter((row) => statusMatchesFilter(row.vacancyStatus, timingStatusFilter))
     .filter((row) => timingSlaFilter === DEFAULT_TIMING_SLA || row.status === timingSlaFilter);
@@ -1079,19 +1229,17 @@ function CurrentMvp({
     }
 
     if (timingSort === "Сначала новые") {
-      return second.id - first.id;
+      if (first.openDate === 0 && second.openDate === 0) return 0;
+      if (first.openDate === 0) return 1;
+      if (second.openDate === 0) return -1;
+      return second.openDate - first.openDate;
     }
 
     if (timingSort === "Сначала старые") {
-      return first.id - second.id;
-    }
-
-    if (timingSort === "Недавно закрытые") {
-      return Number(second.vacancyStatus === "closed") - Number(first.vacancyStatus === "closed") || second.id - first.id;
-    }
-
-    if (timingSort === "Давно закрытые") {
-      return Number(second.vacancyStatus === "closed") - Number(first.vacancyStatus === "closed") || first.id - second.id;
+      if (first.openDate === 0 && second.openDate === 0) return 0;
+      if (first.openDate === 0) return 1;
+      if (second.openDate === 0) return -1;
+      return first.openDate - second.openDate;
     }
 
     return 0;
@@ -1182,24 +1330,8 @@ function CurrentMvp({
 
       <section className={`data-quality-strip ${dataQualityTone}`} aria-label="Качество данных">
         <div>
-          <strong>
-            {!isExcelLoaded
-              ? "Качество данных: ожидает файл"
-              : criticalReviewIssues.length > 0
-                ? "Качество данных: есть ошибки"
-                : warningReviewIssues.length > 0
-                  ? "Качество данных: нужна проверка"
-                  : "Качество данных: ОК"}
-          </strong>
-          <span>
-            {!isExcelLoaded
-              ? "Загрузите Excel, чтобы увидеть результаты проверки"
-              : criticalReviewIssues.length > 0
-                ? `critical: ${criticalReviewIssues.length} · warning: ${warningReviewIssues.length}`
-                : warningReviewIssues.length > 0
-                  ? `warning: ${warningReviewIssues.length}`
-                  : "Ошибок и предупреждений нет"}
-          </span>
+          <strong>{dataQualityTitle}</strong>
+          <span>{dataQualitySubtitle}</span>
         </div>
         {reviewIssues.length > 0 && (
           <small>{reviewIssues[0].vacancy} — {reviewIssues[0].reason || reviewIssues[0].issueType}</small>
@@ -1451,7 +1583,13 @@ function CurrentMvp({
                 <tbody>
                   {visibleTimingRows.map((row) => (
                     <tr key={row.id}>
-                      <td className="primary-cell">{row.title}</td>
+                      <td className="primary-cell">
+                        <span>{row.title}</span>
+                        {row.openDateDisplay && <small>Открыта: {row.openDateDisplay}</small>}
+                        {row.vacancyStatus === "closed" && row.closeDateDisplay && (
+                          <small>Закрыта: {row.closeDateDisplay}</small>
+                        )}
+                      </td>
                       <td>{row.recruiter}</td>
                       <td>
                         <span className={`status-badge ${statusClassName(row.vacancyStatus)}`}>
@@ -1810,7 +1948,7 @@ function CurrentMvp({
           <div className="section-heading with-controls">
             <div>
               <h2>Источники кандидатов</h2>
-              <span>Будет подключено после добавления отчета Huntflow по источникам</span>
+              <span>По выбранному рекрутеру / департаменту / отделу</span>
             </div>
 
             <div className="segmented-control" aria-label="Вид источников кандидатов">
@@ -1831,11 +1969,63 @@ function CurrentMvp({
             </div>
           </div>
 
-          <div className="empty-state sources-empty">
-            <span>
-              В текущем файле нет данных по источникам кандидатов. После подключения отчета Huntflow здесь появятся таблица и диаграмма по каналам.
-            </span>
-          </div>
+          {sourceRows.length === 0 ? (
+            <div className="empty-state sources-empty">
+              <span>
+                {sourcesSummary.length === 0
+                  ? "В текущем файле нет данных по источникам кандидатов"
+                  : "По выбранным фильтрам источников нет"}
+              </span>
+            </div>
+          ) : sourcesView === "table" ? (
+            <div className="table-wrap compact-table-wrap sources-table-wrap">
+              <table className="sources-table">
+                <thead>
+                  <tr>
+                    <th>Источник</th>
+                    <th>Кандидаты</th>
+                    <th>Доля</th>
+                    <th>Интервью</th>
+                    <th>Офферы</th>
+                    <th>Принято</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sourceRows.map((source) => (
+                    <tr key={source.source}>
+                      <td className="primary-cell">{source.source}</td>
+                      <td>{source.candidates}</td>
+                      <td>{percentShare(source.candidates, sourceTotalCandidates)}</td>
+                      <td>{source.interviews}</td>
+                      <td>{source.offers}</td>
+                      <td>{source.accepted}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="donut-panel sources-donut-panel">
+              <div
+                className="donut-chart"
+                style={{ background: sourcesDonutBackground }}
+                aria-label="Распределение кандидатов по источникам"
+              >
+                <span>{sourceTotalCandidates}</span>
+              </div>
+              <div className="donut-legend scrollable-legend">
+                {sourceRows.map((source, index) => (
+                  <div className="legend-row" key={source.source}>
+                    <i style={{ backgroundColor: DEPARTMENT_CHART_COLORS[index % DEPARTMENT_CHART_COLORS.length] }} />
+                    <div>
+                      <span>{source.source}</span>
+                      <strong>{percentShare(source.candidates, sourceTotalCandidates)}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </article>
       </section>
     </main>
