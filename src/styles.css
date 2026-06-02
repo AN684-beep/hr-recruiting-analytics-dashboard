@@ -1264,7 +1264,7 @@ tbody tr.selected-row td {
 
 .analytics-lower-grid .table-wrap {
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 .department-table th,
@@ -1276,8 +1276,7 @@ tbody tr.selected-row td {
   overflow-x: hidden;
 }
 
-.department-table,
-.sources-table {
+.department-table {
   min-width: 0;
   table-layout: fixed;
 }
@@ -1304,17 +1303,47 @@ tbody tr.selected-row td {
 }
 
 .sources-table-wrap {
-  overflow-x: hidden;
+  overflow-x: auto;
   max-height: none;
 }
 
 .sources-table {
-  min-width: 0;
+  min-width: 760px;
+  table-layout: fixed;
+}
+
+.sources-table th,
+.sources-table td {
+  white-space: nowrap;
 }
 
 .sources-table th:first-child,
 .sources-table td:first-child {
-  width: 32%;
+  width: 30%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.sources-table th:nth-child(2),
+.sources-table td:nth-child(2) {
+  width: 150px;
+}
+
+.sources-table th:nth-child(3),
+.sources-table td:nth-child(3) {
+  width: 96px;
+}
+
+.sources-table th:nth-child(4),
+.sources-table td:nth-child(4) {
+  width: 118px;
+}
+
+.sources-table th:nth-child(5),
+.sources-table td:nth-child(5),
+.sources-table th:nth-child(6),
+.sources-table td:nth-child(6) {
+  width: 106px;
 }
 
 .sources-table th:not(:first-child),
