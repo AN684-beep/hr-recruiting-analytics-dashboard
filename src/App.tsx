@@ -908,28 +908,36 @@ function CurrentMvp({
     setSourcesView("table");
   };
 
-  const filterVacanciesForOptions = (
-    skippedFilter: "department" | "team" | "recruiter" | "vacancy"
-  ) =>
-    vacancies.filter((vacancy) => {
-      const departmentMatch =
-        skippedFilter === "department" ||
-        selectedDepartment === DEFAULT_DEPARTMENT ||
-        vacancy.department === selectedDepartment;
-      const teamMatch =
-        skippedFilter === "team" ||
-        selectedTeam === DEFAULT_TEAM ||
-        vacancy.team === selectedTeam;
-      const recruiterMatch =
-        skippedFilter === "recruiter" ||
-        selectedRecruiter === DEFAULT_RECRUITER ||
-        vacancy.recruiter === selectedRecruiter;
-      const vacancyMatch =
-        skippedFilter === "vacancy" ||
-        selectedVacancyId === DEFAULT_VACANCY ||
-        vacancy.sourceId === selectedVacancyId;
+  const vacancyMatchesFilters = (
+    vacancy: Vacancy,
+    skippedFilter?: "department" | "team" | "recruiter" | "vacancy"
+  ) => {
+    const departmentMatch =
+      skippedFilter === "department" ||
+      selectedDepartment === DEFAULT_DEPARTMENT ||
+      vacancy.department === selectedDepartment;
+    const teamMatch =
+      skippedFilter === "team" ||
+      selectedTeam === DEFAULT_TEAM ||
+      vacancy.team === selectedTeam;
+    const recruiterMatch =
+      skippedFilter === "recruiter" ||
+      selectedRecruiter === DEFAULT_RECRUITER ||
+      vacancy.recruiter === selectedRecruiter;
+    const vacancyMatch =
+      skippedFilter === "vacancy" ||
+      selectedVacancyId === DEFAULT_VACANCY ||
+      vacancy.sourceId === selectedVacancyId;
 
-      return departmentMatch && teamMatch && recruiterMatch && vacancyMatch;
+    return departmentMatch && teamMatch && recruiterMatch && vacancyMatch;
+  };
+
+  const filterVacanciesForOptions = (skippedFilter: "department" | "team" | "recruiter" | "vacancy") =>
+    vacancies.filter((vacancy) => vacancyMatchesFilters(vacancy, skippedFilter));
+
+  const filterVacanciesByCurrentSelection = () =>
+    vacancies.filter((vacancy) => {
+      return vacancyMatchesFilters(vacancy);
     });
 
   const departmentOptions = useMemo(
@@ -1003,17 +1011,7 @@ function CurrentMvp({
   }, [selectedVacancyId, vacancyOptions]);
 
   const funnelFilteredVacancies = useMemo(
-    () =>
-      vacancies.filter((vacancy) => {
-        const departmentMatch =
-          selectedDepartment === DEFAULT_DEPARTMENT || vacancy.department === selectedDepartment;
-        const teamMatch = selectedTeam === DEFAULT_TEAM || vacancy.team === selectedTeam;
-        const recruiterMatch =
-          selectedRecruiter === DEFAULT_RECRUITER || vacancy.recruiter === selectedRecruiter;
-        const vacancyMatch = selectedVacancyId === DEFAULT_VACANCY || vacancy.sourceId === selectedVacancyId;
-
-        return departmentMatch && teamMatch && recruiterMatch && vacancyMatch;
-      }),
+    () => filterVacanciesByCurrentSelection(),
     [selectedDepartment, selectedTeam, selectedRecruiter, selectedVacancyId, vacancies]
   );
 
@@ -1215,9 +1213,28 @@ function CurrentMvp({
     )
     .sort((first, second) => second.newCount - first.newCount);
   const recruiterFunnelNewTotal = recruiterFunnelRows.reduce((sum, recruiter) => sum + recruiter.newCount, 0);
-  const recruiterFunnelDonutBackground = buildConicGradient(
-    recruiterFunnelRows.map((recruiter) => recruiter.newCount),
-    DEPARTMENT_CHART_COLORS
+  const isSingleRecruiterSelected = selectedRecruiter !== DEFAULT_RECRUITER;
+  const selectedRecruiterFunnel = isSingleRecruiterSelected ? recruiterFunnelRows[0] : undefined;
+  const selectedRecruiterStageRows = selectedRecruiterFunnel
+    ? [
+      { stage: "Новые", count: selectedRecruiterFunnel.newCount },
+      { stage: "Интервью с рекрутером", count: selectedRecruiterFunnel.primaryInterviews },
+      { stage: "Job offer", count: selectedRecruiterFunnel.jobOffers },
+      { stage: "Оффер принят", count: selectedRecruiterFunnel.acceptedOffers }
+    ].filter((item) => item.count > 0)
+    : [];
+  const selectedRecruiterStageDonutBackground = buildConicGradient(
+    selectedRecruiterStageRows.map((item) => item.count),
+    FUNNEL_CHART_COLORS
+  );
+  const maxRecruiterFunnelCount = Math.max(
+    ...recruiterFunnelRows.flatMap((row) => [
+      row.newCount,
+      row.primaryInterviews,
+      row.jobOffers,
+      row.acceptedOffers
+    ]),
+    1
   );
   const filteredSourceRows = sourcesSummary.filter((source) => {
     const departmentMatch = selectedDepartment === DEFAULT_DEPARTMENT || source.department === selectedDepartment;
@@ -1675,28 +1692,49 @@ function CurrentMvp({
               </div>
             ) : recruiterFunnelNewTotal === 0 ? (
               <p className="empty-state">По выбранным фильтрам данных для диаграммы нет.</p>
-            ) : (
+            ) : isSingleRecruiterSelected && selectedRecruiterFunnel ? (
               <div className="donut-panel recruiter-donut-panel">
                 <div
                   className="donut-chart"
-                  style={{ background: recruiterFunnelDonutBackground }}
-                  aria-label="Распределение новых кандидатов по рекрутерам"
+                  style={{ background: selectedRecruiterStageDonutBackground }}
+                  aria-label="Воронка выбранного рекрутера по этапам"
                 >
                   <span>100%</span>
-                  <small>новые</small>
+                  <small>воронка рекрутера</small>
                 </div>
                 <div className="donut-legend">
-                  <p className="metric-explain">Распределение новых кандидатов по рекрутерам</p>
-                  {recruiterFunnelRows.map((recruiter, index) => (
-                    <div className="legend-row" key={recruiter.name}>
-                      <i style={{ backgroundColor: DEPARTMENT_CHART_COLORS[index % DEPARTMENT_CHART_COLORS.length] }} />
+                  <p className="metric-explain">Этапы рекрутера: {selectedRecruiterFunnel.name}</p>
+                  {selectedRecruiterStageRows.map((item, index) => (
+                    <div className="legend-row" key={item.stage}>
+                      <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
                       <div>
-                        <span>{recruiter.name}</span>
-                        <strong>{percentOneDecimal(recruiter.newCount, recruiterFunnelNewTotal)}</strong>
+                        <span>{item.stage}</span>
+                        <strong>{percentOneDecimal(item.count, selectedRecruiterFunnel.newCount)}</strong>
                       </div>
                     </div>
                   ))}
                 </div>
+              </div>
+            ) : (
+              <div className="recruiter-funnel-chart">
+                <div className="recruiter-funnel-legend">
+                  <span><i className="new" /> Новые</span>
+                  <span><i className="interview" /> Интервью</span>
+                  <span><i className="offer" /> Job offer</span>
+                  <span><i className="accepted" /> Оффер принят</span>
+                </div>
+                {recruiterFunnelRows.map((recruiter) => (
+                  <div className="recruiter-funnel-chart-row" key={recruiter.name}>
+                    <strong>{recruiter.name}</strong>
+                    <div className="recruiter-funnel-bars">
+                      <span className="new" style={{ width: `${(recruiter.newCount / maxRecruiterFunnelCount) * 100}%` }} />
+                      <span className="interview" style={{ width: `${(recruiter.primaryInterviews / maxRecruiterFunnelCount) * 100}%` }} />
+                      <span className="offer" style={{ width: `${(recruiter.jobOffers / maxRecruiterFunnelCount) * 100}%` }} />
+                      <span className="accepted" style={{ width: `${(recruiter.acceptedOffers / maxRecruiterFunnelCount) * 100}%` }} />
+                    </div>
+                    <small>{recruiter.newCount} / {recruiter.primaryInterviews} / {recruiter.jobOffers} / {recruiter.acceptedOffers}</small>
+                  </div>
+                ))}
               </div>
             )}
           </article>
