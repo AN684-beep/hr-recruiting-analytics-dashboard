@@ -541,7 +541,7 @@ p {
 
 .two-column-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(360px, 420px);
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 16px;
   align-items: start;
   min-width: 0;
@@ -552,6 +552,10 @@ p {
   display: grid;
   gap: 16px;
   min-width: 0;
+}
+
+.main-column {
+  overflow: hidden;
 }
 
 .funnel-card {
