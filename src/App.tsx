@@ -1467,7 +1467,7 @@ function CurrentMvp({
       <section className="filters-card section-card" aria-label="Фильтры дашборда">
         <div className="section-heading compact">
           <div>
-            <h2>Фильтры TEST 123</h2>
+            <h2>Фильтры</h2>
             <span>Срез данных для всех блоков</span>
           </div>
           <button className="secondary-button" type="button" onClick={resetFilters}>
@@ -1569,7 +1569,7 @@ function CurrentMvp({
           <article className="section-card funnel-card">
             <div className="section-heading with-controls funnel-heading">
               <div>
-                <h2>Воронка подбора TEST 123</h2>
+                <h2>Воронка подбора</h2>
                 <span>Этапы Huntflow по выбранному рекрутеру / департаменту / отделу / вакансии · доля от “Новые”</span>
               </div>
 
