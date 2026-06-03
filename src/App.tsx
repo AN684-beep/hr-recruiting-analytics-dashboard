@@ -29,6 +29,7 @@ const groupByCount = <T,>(items: T[], getKey: (item: T) => string) =>
 const DEFAULT_DEPARTMENT = "Все департаменты";
 const DEFAULT_TEAM = "Все отделы";
 const DEFAULT_RECRUITER = "Все рекрутеры";
+const DEFAULT_VACANCY = "Все вакансии";
 const DEFAULT_STATUS = "Все статусы";
 const DEFAULT_TIMING_SORT = "Без сортировки";
 const DEFAULT_TIMING_SLA = "Все";
@@ -41,7 +42,6 @@ const HUNTFLOW_FUNNEL_STAGES = [
   "Новые",
   "Отправлено письмо/сообщение",
   "Интервью с рекрутером",
-  "Интервью с рекрутером / тех. скрининг",
   "Собеседование с нанимающим менеджером",
   "Собеседование с тех. экспертом",
   "Финальное интервью",
@@ -66,6 +66,7 @@ const ACTIVE_RECRUITERS = ["Алла", "Катя", "Маша", "Лена", "На
 
 type Vacancy = {
   id: number;
+  sourceId: string;
   title: string;
   department: string;
   team: string;
@@ -116,6 +117,8 @@ type DataQualityMetric = {
 
 type SourceSummaryItem = {
   source: string;
+  vacancyId: string;
+  vacancyTitle: string;
   department: string;
   team: string;
   recruiter: string;
@@ -154,6 +157,7 @@ type RecruiterWorkloadItem = {
   hfNew: number;
   hfMessages: number;
   hfRecruiterInterview: number;
+  hfRecruiterInterviewOrTechScreening: number;
   hfHiringManagerInterview: number;
   hfFinalInterview: number;
   hfJobOffer: number;
@@ -308,6 +312,13 @@ const buildConicGradient = (values: number[], colors: string[]) => {
 
   return `conic-gradient(${segments.join(", ")})`;
 };
+
+const buildVacancySourceId = (row: ExcelRow, fallback: string | number) =>
+  asText(row.total_vacancy_id) ||
+  asText(row.total_vacancy_uuid) ||
+  asText(row.vacancy_id) ||
+  asText(row.hf_vacancy_id) ||
+  String(fallback);
 
 const isHumanFriendlyRecruiterName = (value: string) => {
   const trimmed = value.trim();
@@ -536,6 +547,8 @@ const buildSourceSummary = (rows: ExcelRow[]): SourceSummaryItem[] =>
 
       return {
         source,
+        vacancyId: buildVacancySourceId(row, asText(row.total_vacancy_name) || asText(row.hf_vacancy_name) || source),
+        vacancyTitle: asText(row.total_vacancy_name) || asText(row.hf_vacancy_name),
         department: asText(row.department) || "Не указано",
         team: asText(row.division) || "Не указано",
         recruiter,
@@ -656,6 +669,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
 
   vacancyRows.forEach((row, rowIndex) => {
     const id = rowIndex + 1;
+    const sourceId = buildVacancySourceId(row, id);
     const title = asText(row.total_vacancy_name) || `Вакансия ${id}`;
     const department = asText(row.department) || "Не указано";
     const team = asText(row.division) || "Не указано";
@@ -690,6 +704,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
 
     vacancies.push({
       id,
+      sourceId,
       title,
       department,
       team,
@@ -709,8 +724,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       funnelStages: {
         Новые: hfNew,
         "Отправлено письмо/сообщение": hfMessages,
-        "Интервью с рекрутером": recruiterInterviews,
-        "Интервью с рекрутером / тех. скрининг": recruiterInterviewsOrTech,
+        "Интервью с рекрутером": recruiterInterviews + recruiterInterviewsOrTech,
         "Собеседование с нанимающим менеджером": hmInterviews,
         "Собеседование с тех. экспертом": techInterviews,
         "Финальное интервью": finalInterviews,
@@ -746,6 +760,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       hfNew: asNumber(row.hf_new),
       hfMessages: asNumber(row.hf_messages),
       hfRecruiterInterview: asNumber(row.hf_recruiter_interview),
+      hfRecruiterInterviewOrTechScreening: asNumber(row.hf_recruiter_interview_or_tech_screening),
       hfHiringManagerInterview: asNumber(row.hf_hiring_manager_interview),
       hfFinalInterview: asNumber(row.hf_final_interview),
       hfJobOffer: asNumber(row.hf_job_offer),
@@ -850,6 +865,7 @@ function CurrentMvp({
   const [selectedDepartment, setSelectedDepartment] = useState(DEFAULT_DEPARTMENT);
   const [selectedTeam, setSelectedTeam] = useState(DEFAULT_TEAM);
   const [selectedRecruiter, setSelectedRecruiter] = useState(DEFAULT_RECRUITER);
+  const [selectedVacancyId, setSelectedVacancyId] = useState(DEFAULT_VACANCY);
   const [timingStatusFilter, setTimingStatusFilter] = useState(DEFAULT_STATUS);
   const [timingSort, setTimingSort] = useState(DEFAULT_TIMING_SORT);
   const [timingSlaFilter, setTimingSlaFilter] = useState(DEFAULT_TIMING_SLA);
@@ -857,7 +873,8 @@ function CurrentMvp({
   const [showAllRecruiters, setShowAllRecruiters] = useState(false);
   const [showInactiveRecruiters, setShowInactiveRecruiters] = useState(false);
   const [showAllTimingRows, setShowAllTimingRows] = useState(false);
-  const [funnelView, setFunnelView] = useState<"funnel" | "distribution">("funnel");
+  const [funnelScope, setFunnelScope] = useState<"stages" | "recruiters">("stages");
+  const [funnelView, setFunnelView] = useState<"table" | "chart">("table");
   const [interviewTarget, setInterviewTarget] = useState<"offer" | "accepted">("offer");
   const [departmentView, setDepartmentView] = useState<"table" | "chart">("table");
   const [sourcesView, setSourcesView] = useState<"table" | "chart">("table");
@@ -879,6 +896,7 @@ function CurrentMvp({
     setSelectedDepartment(DEFAULT_DEPARTMENT);
     setSelectedTeam(DEFAULT_TEAM);
     setSelectedRecruiter(DEFAULT_RECRUITER);
+    setSelectedVacancyId(DEFAULT_VACANCY);
     setTimingStatusFilter(DEFAULT_STATUS);
     setTimingSort(DEFAULT_TIMING_SORT);
     setTimingSlaFilter(DEFAULT_TIMING_SLA);
@@ -886,7 +904,8 @@ function CurrentMvp({
     setShowAllRecruiters(false);
     setShowInactiveRecruiters(false);
     setShowAllTimingRows(false);
-    setFunnelView("funnel");
+    setFunnelScope("stages");
+    setFunnelView("table");
     setInterviewTarget("offer");
     setDepartmentView("table");
     setSourcesView("table");
@@ -904,6 +923,21 @@ function CurrentMvp({
     recruiters.some((recruiter) => normalizeRecruiterKey(recruiter) === normalizeRecruiterKey(activeRecruiter))
   );
 
+  const vacancyOptions = useMemo(
+    () =>
+      vacancies.map((vacancy) => ({
+        value: vacancy.sourceId,
+        label: [
+          vacancy.title,
+          vacancy.openDateDisplay,
+          statusLabel(vacancy.status)
+        ].filter(Boolean).join(" — ")
+      })),
+    [vacancies]
+  );
+
+  const selectedVacancy = vacancies.find((vacancy) => vacancy.sourceId === selectedVacancyId);
+
   const funnelFilteredVacancies = useMemo(
     () =>
       vacancies.filter((vacancy) => {
@@ -912,10 +946,11 @@ function CurrentMvp({
         const teamMatch = selectedTeam === DEFAULT_TEAM || vacancy.team === selectedTeam;
         const recruiterMatch =
           selectedRecruiter === DEFAULT_RECRUITER || vacancy.recruiter === selectedRecruiter;
+        const vacancyMatch = selectedVacancyId === DEFAULT_VACANCY || vacancy.sourceId === selectedVacancyId;
 
-        return departmentMatch && teamMatch && recruiterMatch;
+        return departmentMatch && teamMatch && recruiterMatch && vacancyMatch;
       }),
-    [selectedDepartment, selectedTeam, selectedRecruiter, vacancies]
+    [selectedDepartment, selectedTeam, selectedRecruiter, selectedVacancyId, vacancies]
   );
 
   const filteredVacancies = funnelFilteredVacancies;
@@ -925,46 +960,39 @@ function CurrentMvp({
 
   const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
   const closedVacancies = filteredVacancies.filter((vacancy) => isClosedStatus(vacancy.status));
-  const closedOnTime = closedVacancies.filter(
+  const slaEligibleVacancies = filteredVacancies.filter((vacancy) => vacancy.status !== "frozen");
+  const slaClosedVacancies = slaEligibleVacancies.filter((vacancy) => isClosedStatus(vacancy.status));
+  const closedOnTime = slaClosedVacancies.filter(
     (vacancy) => vacancy.slaDays > 0 && vacancy.daysToClose > 0 && vacancy.daysToClose <= vacancy.slaDays
   );
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
   const currentRisk = riskyVacancies[safeRiskIndex];
-  const recruiterFunnelRows = recruiterWorkloadRows.filter(
-    (recruiter) =>
-      selectedRecruiter === DEFAULT_RECRUITER
-        ? isActiveRecruiter(recruiter.name)
-        : recruiter.name === selectedRecruiter || recruiter.canonical === selectedRecruiter
-  );
-  const recruiterFunnelOffers = recruiterFunnelRows.reduce(
-    (sum, recruiter) => sum + recruiter.hfJobOffer,
-    0
-  );
-  const recruiterFunnelAcceptedOffers = recruiterFunnelRows.reduce(
-    (sum, recruiter) => sum + recruiter.hfOfferAccepted,
-    0
-  );
-  const recruiterPrimaryInterviews = recruiterFunnelRows.reduce(
-    (sum, recruiter) => sum + recruiter.hfRecruiterInterview,
-    0
-  );
+  const funnelStageCounts = funnelStages.map((stage) => ({
+    stage,
+    count: funnelFilteredVacancies.reduce((sum, vacancy) => sum + (vacancy.funnelStages[stage] || 0), 0)
+  }));
+  const stageCount = (stage: string) =>
+    funnelStageCounts.find((item) => item.stage === stage)?.count || 0;
+  const currentJobOffers = stageCount("Job offer");
+  const currentAcceptedOffers = stageCount("Оффер принят");
+  const currentPrimaryInterviews = stageCount("Интервью с рекрутером");
   const interviewTargets = {
     offer: {
       label: "Офферы",
-      value: recruiterFunnelOffers,
+      value: currentJobOffers,
       subtitle: "Из интервью с рекрутером в оффер"
     },
     accepted: {
       label: "Принятые офферы",
-      value: recruiterFunnelAcceptedOffers,
+      value: currentAcceptedOffers,
       subtitle: "Из интервью с рекрутером в принятый оффер"
     }
   };
   const currentInterviewTarget = interviewTargets[interviewTarget];
   const interviewConversion =
-    recruiterPrimaryInterviews > 0
-      ? percentOneDecimal(currentInterviewTarget.value, recruiterPrimaryInterviews)
+    currentPrimaryInterviews > 0
+      ? percentOneDecimal(currentInterviewTarget.value, currentPrimaryInterviews)
       : "—";
   const warningReviewIssues = reviewIssues.filter(
     (issue) => issue.severity.toLowerCase() === "warning"
@@ -1044,34 +1072,30 @@ function CurrentMvp({
     },
     {
       label: "Закрыто в срок",
-      value: percentOneDecimal(closedOnTime.length, closedVacancies.length),
+      value: percentOneDecimal(closedOnTime.length, slaClosedVacancies.length),
       hint: "По вакансиям выбранного среза",
       tone: "quality"
     },
     {
       label: "Всего офферов",
-      value: recruiterFunnelOffers,
-      hint: "По полной воронке Huntflow",
+      value: currentJobOffers,
+      hint: "По этапу Job offer в текущем срезе",
       tone: "neutral"
     },
     {
       label: "Принято офферов",
-      value: recruiterFunnelAcceptedOffers,
-      hint: "По полной воронке Huntflow",
+      value: currentAcceptedOffers,
+      hint: "По этапу “Оффер принят” в текущем срезе",
       tone: "waiting"
     },
     {
       label: "Принятие офферов",
-      value: acceptanceRateLabel(recruiterFunnelAcceptedOffers, recruiterFunnelOffers),
-      hint: "По полной воронке Huntflow",
-      tone: recruiterFunnelAcceptedOffers > recruiterFunnelOffers ? "paused" : "closed"
+      value: acceptanceRateLabel(currentAcceptedOffers, currentJobOffers),
+      hint: "Job offer → “Оффер принят”",
+      tone: currentAcceptedOffers > currentJobOffers ? "paused" : "closed"
     }
   ];
 
-  const funnelStageCounts = funnelStages.map((stage) => ({
-    stage,
-    count: funnelFilteredVacancies.reduce((sum, vacancy) => sum + (vacancy.funnelStages[stage] || 0), 0)
-  }));
   const funnelBaseCount = funnelStageCounts.find((item) => item.stage === "Новые")?.count || funnelStageCounts[0]?.count || 0;
   const funnel = funnelStageCounts
     .filter((item) => item.count > 0)
@@ -1080,11 +1104,60 @@ function CurrentMvp({
       conversion: item.stage === "Новые" ? "100%" : percentOneDecimal(item.count, funnelBaseCount)
     }));
 
-  const maxFunnelCount = Math.max(...funnel.map((item) => item.count), 1);
   const funnelTotal = funnel.reduce((sum, item) => sum + item.count, 0);
   const funnelDonutBackground = buildConicGradient(
     funnel.map((item) => item.count),
     FUNNEL_CHART_COLORS
+  );
+  const recruiterFunnelByKey = new Map<
+    string,
+    {
+      name: string;
+      newCount: number;
+      primaryInterviews: number;
+      hmInterviews: number;
+      jobOffers: number;
+      acceptedOffers: number;
+    }
+  >();
+
+  funnelFilteredVacancies.forEach((vacancy) => {
+    const key = normalizeRecruiterKey(vacancy.recruiter || "Не указано") || "не указано";
+    const current = recruiterFunnelByKey.get(key) || {
+      name: vacancy.recruiter || "Не указано",
+      newCount: 0,
+      primaryInterviews: 0,
+      hmInterviews: 0,
+      jobOffers: 0,
+      acceptedOffers: 0
+    };
+
+    current.newCount += vacancy.funnelStages["Новые"] || 0;
+    current.primaryInterviews += vacancy.funnelStages["Интервью с рекрутером"] || 0;
+    current.hmInterviews += vacancy.funnelStages["Собеседование с нанимающим менеджером"] || 0;
+    current.jobOffers += vacancy.funnelStages["Job offer"] || 0;
+    current.acceptedOffers += vacancy.funnelStages["Оффер принят"] || 0;
+    recruiterFunnelByKey.set(key, current);
+  });
+
+  const recruiterFunnelRows = Array.from(recruiterFunnelByKey.values())
+    .filter(
+      (recruiter) =>
+        recruiter.newCount > 0 ||
+        recruiter.primaryInterviews > 0 ||
+        recruiter.hmInterviews > 0 ||
+        recruiter.jobOffers > 0 ||
+        recruiter.acceptedOffers > 0
+    )
+    .sort((first, second) => second.newCount - first.newCount);
+  const maxRecruiterFunnelCount = Math.max(
+    ...recruiterFunnelRows.flatMap((row) => [
+      row.newCount,
+      row.primaryInterviews,
+      row.jobOffers,
+      row.acceptedOffers
+    ]),
+    1
   );
   const filteredSourceRows = sourcesSummary.filter((source) => {
     const departmentMatch = selectedDepartment === DEFAULT_DEPARTMENT || source.department === selectedDepartment;
@@ -1093,8 +1166,12 @@ function CurrentMvp({
       selectedRecruiter === DEFAULT_RECRUITER ||
       source.recruiter === selectedRecruiter ||
       source.recruiterCanonical === selectedRecruiter;
+    const vacancyMatch =
+      selectedVacancyId === DEFAULT_VACANCY ||
+      source.vacancyId === selectedVacancyId ||
+      (selectedVacancy ? source.vacancyTitle === selectedVacancy.title : false);
 
-    return departmentMatch && teamMatch && recruiterMatch;
+    return departmentMatch && teamMatch && recruiterMatch && vacancyMatch;
   });
   const sourceRowsByName = new Map<
     string,
@@ -1134,32 +1211,36 @@ function CurrentMvp({
     }))
     .sort((first, second) => second.count - first.count);
 
-  const slaVacancies = filteredVacancies.filter((vacancy) => vacancy.status === "closed");
   const slaSummary = [
     {
       label: "Средний целевой срок",
-      value: `${average(filteredVacancies.map((vacancy) => vacancy.targetCloseDays))} дн.`
+      value: `${average(slaEligibleVacancies.map((vacancy) => vacancy.targetCloseDays))} дн.`
     },
     {
       label: "Средний фактический срок",
-      value: `${average(slaVacancies.map((vacancy) => vacancy.actualCloseDays || vacancy.daysToClose))} дн.`
+      value: `${average(slaClosedVacancies.map((vacancy) => vacancy.actualCloseDays || vacancy.daysToClose))} дн.`
     },
     {
       label: "% закрытых в срок",
-      value: percent(closedOnTime.length, closedVacancies.length)
+      value: percent(closedOnTime.length, slaClosedVacancies.length)
     }
   ];
 
   const timingRows = filteredVacancies.map((vacancy) => {
+    const isFrozenVacancy = vacancy.status === "frozen";
     const targetDays = asValidDays(vacancy.targetCloseDays || vacancy.slaDays);
     const actualDays = asValidDays(
       vacancy.status === "closed"
         ? vacancy.actualCloseDays || vacancy.daysToClose
         : vacancy.daysInWork || vacancy.daysToClose || vacancy.actualCloseDays
     );
-    const hasTimingData = targetDays > 0 && actualDays > 0;
+    const hasTimingData = !isFrozenVacancy && targetDays > 0 && actualDays > 0;
     const deviation = hasTimingData ? actualDays - targetDays : 0;
-    const timingStatus = hasTimingData ? (actualDays <= targetDays ? "В срок" : "Просрочено") : "Нет данных";
+    const timingStatus = isFrozenVacancy
+      ? "Не считается"
+      : hasTimingData
+        ? (actualDays <= targetDays ? "В срок" : "Просрочено")
+        : "Нет данных";
 
     return {
       id: vacancy.id,
@@ -1215,7 +1296,11 @@ function CurrentMvp({
     )
     .filter((recruiter) => showInactiveRecruiters || isActiveRecruiter(recruiter.name))
     .filter((recruiter) => {
-      if (selectedDepartment === DEFAULT_DEPARTMENT && selectedTeam === DEFAULT_TEAM) {
+      if (
+        selectedDepartment === DEFAULT_DEPARTMENT &&
+        selectedTeam === DEFAULT_TEAM &&
+        selectedVacancyId === DEFAULT_VACANCY
+      ) {
         return true;
       }
 
@@ -1369,6 +1454,26 @@ function CurrentMvp({
             </select>
           </label>
 
+          <label>
+            <span>Вакансия</span>
+            <select
+              value={selectedVacancyId}
+              onChange={(event) => {
+                setSelectedVacancyId(event.target.value);
+                setRiskIndex(0);
+                setShowAllRecruiters(false);
+                setShowAllTimingRows(false);
+              }}
+            >
+              <option>{DEFAULT_VACANCY}</option>
+              {vacancyOptions.map((vacancy) => (
+                <option key={`${vacancy.value}-${vacancy.label}`} value={vacancy.value}>
+                  {vacancy.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
         </div>
       </section>
 
@@ -1385,49 +1490,74 @@ function CurrentMvp({
       <section className="two-column-layout">
         <div className="main-column">
           <article className="section-card funnel-card">
-            <div className="section-heading with-controls">
+            <div className="section-heading with-controls funnel-heading">
               <div>
                 <h2>Воронка подбора</h2>
-                <span>Этапы Huntflow по выбранному рекрутеру / департаменту / отделу · доля от “Новые”</span>
+                <span>Этапы Huntflow по выбранному рекрутеру / департаменту / отделу / вакансии · доля от “Новые”</span>
               </div>
 
-              <div className="segmented-control" aria-label="Вид воронки">
+              <div className="segmented-control" aria-label="Срез воронки">
                 <button
                   type="button"
-                  className={funnelView === "funnel" ? "active" : ""}
-                  onClick={() => setFunnelView("funnel")}
+                  className={funnelScope === "stages" ? "active" : ""}
+                  onClick={() => setFunnelScope("stages")}
                 >
-                  Воронка
+                  Воронка по этапам
                 </button>
                 <button
                   type="button"
-                  className={funnelView === "distribution" ? "active" : ""}
-                  onClick={() => setFunnelView("distribution")}
+                  className={funnelScope === "recruiters" ? "active" : ""}
+                  onClick={() => setFunnelScope("recruiters")}
                 >
-                  Распределение
+                  Воронка по рекрутеру
                 </button>
               </div>
             </div>
 
-            {funnelView === "funnel" ? (
-              <div className="funnel-list">
-                {funnel.map((item) => (
-                  <div className="funnel-row" key={item.stage}>
-                    <div className="funnel-label">
-                      <span>{item.stage}</span>
-                      <small>{item.conversion}</small>
-                    </div>
-                    <strong className="funnel-value">{item.count}</strong>
-                    <div className="funnel-track">
-                      <div
-                        className="funnel-bar"
-                        style={{ width: `${(item.count / maxFunnelCount) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
+            <div className="funnel-subtoolbar">
+              <span>{funnelScope === "stages" ? "Доля от этапа “Новые”" : "Сравнение рекрутеров по этапам Huntflow"}</span>
+              <div className="segmented-control compact" aria-label="Вид отображения воронки">
+                <button
+                  type="button"
+                  className={funnelView === "table" ? "active" : ""}
+                  onClick={() => setFunnelView("table")}
+                >
+                  Таблица
+                </button>
+                <button
+                  type="button"
+                  className={funnelView === "chart" ? "active" : ""}
+                  onClick={() => setFunnelView("chart")}
+                >
+                  Диаграмма
+                </button>
               </div>
-            ) : (
+            </div>
+
+            {funnel.length === 0 ? (
+              <p className="empty-state">Загрузите Excel, чтобы увидеть воронку подбора.</p>
+            ) : funnelScope === "stages" && funnelView === "table" ? (
+              <div className="table-wrap compact-table-wrap funnel-table-wrap">
+                <table className="funnel-table">
+                  <thead>
+                    <tr>
+                      <th>Этап</th>
+                      <th>Кандидаты</th>
+                      <th>Доля от новых</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {funnel.map((item) => (
+                      <tr key={item.stage}>
+                        <td className="primary-cell">{item.stage}</td>
+                        <td>{item.count}</td>
+                        <td>{item.conversion}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : funnelScope === "stages" ? (
               <div className="donut-panel">
                 <div
                   className="donut-chart"
@@ -1435,20 +1565,74 @@ function CurrentMvp({
                   aria-label="Распределение кандидатов по этапам"
                 >
                   <span>100%</span>
-                  <small>распределение</small>
+                  <small>этапы</small>
                 </div>
                 <div className="donut-legend">
                   <p className="metric-explain">Распределение кандидатов по этапам</p>
-                {funnel.map((item, index) => (
-                  <div className="legend-row" key={item.stage}>
-                    <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
-                    <div>
-                      <span>{item.stage}</span>
-                      <strong>{percentOneDecimal(item.count, funnelTotal)}</strong>
+                  {funnel.map((item, index) => (
+                    <div className="legend-row" key={item.stage}>
+                      <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
+                      <div>
+                        <span>{item.stage}</span>
+                        <strong>{percentOneDecimal(item.count, funnelTotal)}</strong>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            ) : recruiterFunnelRows.length === 0 ? (
+              <p className="empty-state">По выбранным фильтрам данных по рекрутерам нет.</p>
+            ) : funnelView === "table" ? (
+              <div className="table-wrap compact-table-wrap recruiter-funnel-table-wrap">
+                <table className="funnel-table recruiter-funnel-table">
+                  <thead>
+                    <tr>
+                      <th>Рекрутер</th>
+                      <th>Новые</th>
+                      <th>Интервью с рекрутером</th>
+                      <th>Собеседование с НМ</th>
+                      <th>Job offer</th>
+                      <th>Оффер принят</th>
+                      <th>Конверсия в оффер</th>
+                      <th>Конверсия в принятый оффер</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recruiterFunnelRows.map((recruiter) => (
+                      <tr key={recruiter.name}>
+                        <td className="primary-cell">{recruiter.name}</td>
+                        <td>{recruiter.newCount}</td>
+                        <td>{recruiter.primaryInterviews}</td>
+                        <td>{recruiter.hmInterviews}</td>
+                        <td>{recruiter.jobOffers}</td>
+                        <td>{recruiter.acceptedOffers}</td>
+                        <td>{recruiter.newCount > 0 ? percentOneDecimal(recruiter.jobOffers, recruiter.newCount) : "—"}</td>
+                        <td>{recruiter.newCount > 0 ? percentOneDecimal(recruiter.acceptedOffers, recruiter.newCount) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="recruiter-funnel-chart">
+                <div className="recruiter-funnel-legend">
+                  <span><i className="new" /> Новые</span>
+                  <span><i className="interview" /> Интервью</span>
+                  <span><i className="offer" /> Job offer</span>
+                  <span><i className="accepted" /> Оффер принят</span>
+                </div>
+                {recruiterFunnelRows.map((recruiter) => (
+                  <div className="recruiter-funnel-chart-row" key={recruiter.name}>
+                    <strong>{recruiter.name}</strong>
+                    <div className="recruiter-funnel-bars">
+                      <span className="new" style={{ width: `${(recruiter.newCount / maxRecruiterFunnelCount) * 100}%` }} />
+                      <span className="interview" style={{ width: `${(recruiter.primaryInterviews / maxRecruiterFunnelCount) * 100}%` }} />
+                      <span className="offer" style={{ width: `${(recruiter.jobOffers / maxRecruiterFunnelCount) * 100}%` }} />
+                      <span className="accepted" style={{ width: `${(recruiter.acceptedOffers / maxRecruiterFunnelCount) * 100}%` }} />
+                    </div>
+                    <small>{recruiter.newCount} / {recruiter.primaryInterviews} / {recruiter.jobOffers} / {recruiter.acceptedOffers}</small>
                   </div>
                 ))}
-                </div>
               </div>
             )}
           </article>
@@ -1591,24 +1775,24 @@ function CurrentMvp({
             <div className="section-heading">
               <div>
                 <h2>Офферы</h2>
-                <span>По полной воронке Huntflow за период</span>
+                <span>По этапам Job offer и “Оффер принят” в текущем срезе</span>
               </div>
             </div>
 
             <div className="offer-summary">
               <div>
                 <span>Выставлено</span>
-                <strong>{recruiterFunnelOffers}</strong>
+                <strong>{currentJobOffers}</strong>
               </div>
               <div>
                 <span>Принято</span>
-                <strong>{recruiterFunnelAcceptedOffers}</strong>
+                <strong>{currentAcceptedOffers}</strong>
               </div>
               <div>
                 <span>Принятие</span>
                 <strong>
-                  {recruiterFunnelOffers > 0
-                    ? percentOneDecimal(recruiterFunnelAcceptedOffers, recruiterFunnelOffers)
+                  {currentJobOffers > 0
+                    ? acceptanceRateLabel(currentAcceptedOffers, currentJobOffers)
                     : "—"}
                 </strong>
               </div>
@@ -1656,7 +1840,7 @@ function CurrentMvp({
               </div>
             </div>
 
-            {recruiterPrimaryInterviews === 0 ? (
+            {currentPrimaryInterviews === 0 ? (
               <div className="empty-state compact">
                 <strong>—</strong>
                 <span>Недостаточно данных для расчета</span>
@@ -1665,7 +1849,7 @@ function CurrentMvp({
               <div className="offer-summary">
                 <div>
                   <span>Первичные интервью</span>
-                  <strong>{recruiterPrimaryInterviews}</strong>
+                  <strong>{currentPrimaryInterviews}</strong>
                 </div>
                 <div>
                   <span>{currentInterviewTarget.label}</span>
@@ -1792,7 +1976,7 @@ function CurrentMvp({
                   <td>{recruiter.pausedVacancies} / {recruiter.frozenVacancies}</td>
                   <td>{recruiter.closedVacancies}</td>
                   <td>{recruiter.hfNew}</td>
-                  <td>{recruiter.hfHiringManagerInterview}</td>
+                  <td>{recruiter.hfRecruiterInterview + recruiter.hfRecruiterInterviewOrTechScreening}</td>
                   <td>{recruiter.hfJobOffer}</td>
                   <td>{recruiter.hfOfferAccepted}</td>
                   <td>
