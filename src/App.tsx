@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 const percent = (value: number, total: number) =>
@@ -880,12 +880,9 @@ function CurrentMvp({
   const [sourcesView, setSourcesView] = useState<"table" | "chart">("table");
 
   const {
-    departments,
     funnelStages,
     offers,
-    recruiters,
     sourcesSummary,
-    teams,
     vacancies,
     recruiterWorkload: recruiterWorkloadRows,
     reviewIssues,
@@ -911,32 +908,99 @@ function CurrentMvp({
     setSourcesView("table");
   };
 
-  const availableTeams = useMemo(() => {
-    if (selectedDepartment === DEFAULT_DEPARTMENT) {
-      return teams;
-    }
+  const filterVacanciesForOptions = (
+    skippedFilter: "department" | "team" | "recruiter" | "vacancy"
+  ) =>
+    vacancies.filter((vacancy) => {
+      const departmentMatch =
+        skippedFilter === "department" ||
+        selectedDepartment === DEFAULT_DEPARTMENT ||
+        vacancy.department === selectedDepartment;
+      const teamMatch =
+        skippedFilter === "team" ||
+        selectedTeam === DEFAULT_TEAM ||
+        vacancy.team === selectedTeam;
+      const recruiterMatch =
+        skippedFilter === "recruiter" ||
+        selectedRecruiter === DEFAULT_RECRUITER ||
+        vacancy.recruiter === selectedRecruiter;
+      const vacancyMatch =
+        skippedFilter === "vacancy" ||
+        selectedVacancyId === DEFAULT_VACANCY ||
+        vacancy.sourceId === selectedVacancyId;
 
-    return teams.filter((team) => team.department === selectedDepartment);
-  }, [selectedDepartment, teams]);
+      return departmentMatch && teamMatch && recruiterMatch && vacancyMatch;
+    });
 
-  const activeRecruiterOptions = ACTIVE_RECRUITERS.filter((activeRecruiter) =>
-    recruiters.some((recruiter) => normalizeRecruiterKey(recruiter) === normalizeRecruiterKey(activeRecruiter))
+  const departmentOptions = useMemo(
+    () => uniqueNonEmpty(filterVacanciesForOptions("department").map((vacancy) => vacancy.department)),
+    [selectedTeam, selectedRecruiter, selectedVacancyId, vacancies]
+  );
+
+  const availableTeams = useMemo(
+    () => {
+      const teamsByKey = new Map<string, Team>();
+      filterVacanciesForOptions("team").forEach((vacancy) => {
+        const key = `${vacancy.department}|||${vacancy.team}`;
+        if (!teamsByKey.has(key)) {
+          teamsByKey.set(key, { name: vacancy.team, department: vacancy.department });
+        }
+      });
+
+      return Array.from(teamsByKey.values());
+    },
+    [selectedDepartment, selectedRecruiter, selectedVacancyId, vacancies]
+  );
+
+  const activeRecruiterOptions = useMemo(
+    () => {
+      const recruiterNames = uniqueNonEmpty(filterVacanciesForOptions("recruiter").map((vacancy) => vacancy.recruiter));
+      return ACTIVE_RECRUITERS.filter((activeRecruiter) =>
+        recruiterNames.some((recruiter) => normalizeRecruiterKey(recruiter) === normalizeRecruiterKey(activeRecruiter))
+      );
+    },
+    [selectedDepartment, selectedTeam, selectedVacancyId, vacancies]
   );
 
   const vacancyOptions = useMemo(
     () =>
-      vacancies.map((vacancy) => ({
+      filterVacanciesForOptions("vacancy").map((vacancy) => ({
         value: vacancy.sourceId,
         label: [
           vacancy.title,
           vacancy.openDateDisplay,
-          statusLabel(vacancy.status)
+          statusLabel(vacancy.status),
+          vacancy.recruiter
         ].filter(Boolean).join(" — ")
       })),
-    [vacancies]
+    [selectedDepartment, selectedTeam, selectedRecruiter, vacancies]
   );
 
   const selectedVacancy = vacancies.find((vacancy) => vacancy.sourceId === selectedVacancyId);
+
+  useEffect(() => {
+    if (selectedDepartment !== DEFAULT_DEPARTMENT && !departmentOptions.includes(selectedDepartment)) {
+      setSelectedDepartment(DEFAULT_DEPARTMENT);
+    }
+  }, [departmentOptions, selectedDepartment]);
+
+  useEffect(() => {
+    if (selectedTeam !== DEFAULT_TEAM && !availableTeams.some((team) => team.name === selectedTeam)) {
+      setSelectedTeam(DEFAULT_TEAM);
+    }
+  }, [availableTeams, selectedTeam]);
+
+  useEffect(() => {
+    if (selectedRecruiter !== DEFAULT_RECRUITER && !activeRecruiterOptions.includes(selectedRecruiter)) {
+      setSelectedRecruiter(DEFAULT_RECRUITER);
+    }
+  }, [activeRecruiterOptions, selectedRecruiter]);
+
+  useEffect(() => {
+    if (selectedVacancyId !== DEFAULT_VACANCY && !vacancyOptions.some((vacancy) => vacancy.value === selectedVacancyId)) {
+      setSelectedVacancyId(DEFAULT_VACANCY);
+    }
+  }, [selectedVacancyId, vacancyOptions]);
 
   const funnelFilteredVacancies = useMemo(
     () =>
@@ -1150,14 +1214,10 @@ function CurrentMvp({
         recruiter.acceptedOffers > 0
     )
     .sort((first, second) => second.newCount - first.newCount);
-  const maxRecruiterFunnelCount = Math.max(
-    ...recruiterFunnelRows.flatMap((row) => [
-      row.newCount,
-      row.primaryInterviews,
-      row.jobOffers,
-      row.acceptedOffers
-    ]),
-    1
+  const recruiterFunnelNewTotal = recruiterFunnelRows.reduce((sum, recruiter) => sum + recruiter.newCount, 0);
+  const recruiterFunnelDonutBackground = buildConicGradient(
+    recruiterFunnelRows.map((recruiter) => recruiter.newCount),
+    DEPARTMENT_CHART_COLORS
   );
   const filteredSourceRows = sourcesSummary.filter((source) => {
     const departmentMatch = selectedDepartment === DEFAULT_DEPARTMENT || source.department === selectedDepartment;
@@ -1412,7 +1472,7 @@ function CurrentMvp({
               }}
             >
               <option>{DEFAULT_DEPARTMENT}</option>
-              {departments.map((department) => (
+              {departmentOptions.map((department) => (
                 <option key={department}>{department}</option>
               ))}
             </select>
@@ -1613,26 +1673,30 @@ function CurrentMvp({
                   </tbody>
                 </table>
               </div>
+            ) : recruiterFunnelNewTotal === 0 ? (
+              <p className="empty-state">По выбранным фильтрам данных для диаграммы нет.</p>
             ) : (
-              <div className="recruiter-funnel-chart">
-                <div className="recruiter-funnel-legend">
-                  <span><i className="new" /> Новые</span>
-                  <span><i className="interview" /> Интервью</span>
-                  <span><i className="offer" /> Job offer</span>
-                  <span><i className="accepted" /> Оффер принят</span>
+              <div className="donut-panel recruiter-donut-panel">
+                <div
+                  className="donut-chart"
+                  style={{ background: recruiterFunnelDonutBackground }}
+                  aria-label="Распределение новых кандидатов по рекрутерам"
+                >
+                  <span>100%</span>
+                  <small>новые</small>
                 </div>
-                {recruiterFunnelRows.map((recruiter) => (
-                  <div className="recruiter-funnel-chart-row" key={recruiter.name}>
-                    <strong>{recruiter.name}</strong>
-                    <div className="recruiter-funnel-bars">
-                      <span className="new" style={{ width: `${(recruiter.newCount / maxRecruiterFunnelCount) * 100}%` }} />
-                      <span className="interview" style={{ width: `${(recruiter.primaryInterviews / maxRecruiterFunnelCount) * 100}%` }} />
-                      <span className="offer" style={{ width: `${(recruiter.jobOffers / maxRecruiterFunnelCount) * 100}%` }} />
-                      <span className="accepted" style={{ width: `${(recruiter.acceptedOffers / maxRecruiterFunnelCount) * 100}%` }} />
+                <div className="donut-legend">
+                  <p className="metric-explain">Распределение новых кандидатов по рекрутерам</p>
+                  {recruiterFunnelRows.map((recruiter, index) => (
+                    <div className="legend-row" key={recruiter.name}>
+                      <i style={{ backgroundColor: DEPARTMENT_CHART_COLORS[index % DEPARTMENT_CHART_COLORS.length] }} />
+                      <div>
+                        <span>{recruiter.name}</span>
+                        <strong>{percentOneDecimal(recruiter.newCount, recruiterFunnelNewTotal)}</strong>
+                      </div>
                     </div>
-                    <small>{recruiter.newCount} / {recruiter.primaryInterviews} / {recruiter.jobOffers} / {recruiter.acceptedOffers}</small>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </article>
