@@ -366,6 +366,7 @@ p {
 }
 
 .section-card {
+  min-width: 0;
   border-radius: 18px;
   padding: 18px;
 }
@@ -558,9 +559,19 @@ p {
   overflow: hidden;
 }
 
+.main-column > *,
+.side-column > * {
+  min-width: 0;
+}
+
 .funnel-card {
   min-width: 0;
   overflow: hidden;
+}
+
+.funnel-card > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .funnel-list {
@@ -641,12 +652,14 @@ p {
 
 .funnel-table-wrap,
 .recruiter-funnel-table-wrap {
+  display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   max-height: 340px;
   overflow-x: auto;
   overflow-y: auto;
+  overscroll-behavior-x: contain;
 }
 
 .funnel-table th,
@@ -662,7 +675,8 @@ p {
 }
 
 .recruiter-funnel-table {
-  min-width: 1180px;
+  width: max-content;
+  min-width: 1200px;
 }
 
 .funnel-table {
@@ -675,10 +689,10 @@ p {
 
 .recruiter-funnel-chart {
   display: grid;
-  gap: 12px;
-  max-height: 360px;
+  gap: 14px;
+  max-height: 380px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 6px;
 }
 
 .recruiter-funnel-legend {
@@ -704,13 +718,13 @@ p {
 
 .recruiter-funnel-chart-row {
   display: grid;
-  grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) 110px;
-  gap: 12px;
+  grid-template-columns: minmax(130px, 180px) minmax(0, 1fr) 120px;
+  gap: 14px;
   align-items: center;
   border: 1px solid #e7edf5;
   border-radius: 14px;
   background: #ffffff;
-  padding: 10px;
+  padding: 13px;
 }
 
 .recruiter-funnel-chart-row strong {
@@ -729,13 +743,13 @@ p {
 
 .recruiter-funnel-bars {
   display: grid;
-  gap: 5px;
+  gap: 7px;
   min-width: 0;
 }
 
 .recruiter-funnel-bars span {
   min-width: 2px;
-  height: 8px;
+  height: 10px;
   border-radius: 999px;
 }
 
