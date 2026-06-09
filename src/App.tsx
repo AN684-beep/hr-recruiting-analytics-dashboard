@@ -218,6 +218,22 @@ const asText = (value: unknown) => {
   return String(value).trim();
 };
 
+const normalizeText = (value: unknown) =>
+  asText(value)
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeUnknown = (value: unknown) => {
+  const normalized = normalizeText(value);
+
+  if (!normalized || normalized.toLowerCase() === "не указано") {
+    return "Не указано";
+  }
+
+  return normalized;
+};
+
 const asNumber = (value: unknown) => {
   if (value === null || value === undefined || value === "") {
     return 0;
@@ -288,8 +304,30 @@ const dateTimestamp = (value: unknown) => {
   return date ? date.getTime() : 0;
 };
 
+const sortUnknownLast = (values: string[]) =>
+  [...values].sort((first, second) => {
+    if (first === "Не указано" && second !== "Не указано") return 1;
+    if (second === "Не указано" && first !== "Не указано") return -1;
+    return first.localeCompare(second, "ru");
+  });
+
+const uniqueNormalizedOptions = (values: string[]) => {
+  const optionsByKey = new Map<string, string>();
+
+  values.forEach((value) => {
+    const normalized = normalizeUnknown(value);
+    const key = normalizeTextKey(normalized);
+
+    if (!optionsByKey.has(key)) {
+      optionsByKey.set(key, normalized);
+    }
+  });
+
+  return sortUnknownLast(Array.from(optionsByKey.values()));
+};
+
 const uniqueNonEmpty = (values: string[]) =>
-  Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+  Array.from(new Set(values.map((value) => normalizeText(value)).filter(Boolean)));
 
 const normalizeTextKey = (value: string) => value.trim().toLowerCase().replaceAll("ё", "е");
 
@@ -321,16 +359,16 @@ const buildVacancySourceId = (row: ExcelRow, fallback: string | number) =>
   String(fallback);
 
 const isHumanFriendlyRecruiterName = (value: string) => {
-  const trimmed = value.trim();
+  const trimmed = normalizeText(value);
 
   return trimmed !== "" && trimmed !== trimmed.toLowerCase();
 };
 
 const pickRecruiterDisplayName = (...values: string[]) => {
-  const nonEmpty = values.map((value) => value.trim()).filter(Boolean);
+  const nonEmpty = values.map((value) => normalizeText(value)).filter(Boolean);
   const friendly = nonEmpty.find(isHumanFriendlyRecruiterName);
 
-  return friendly || nonEmpty[0] || "Не указано";
+  return normalizeUnknown(friendly || nonEmpty[0]);
 };
 
 const normalizeCandidateSource = (source: string) => {
@@ -541,16 +579,22 @@ const buildSourceSummary = (rows: ExcelRow[]): SourceSummaryItem[] =>
     .map((row) => {
       const source = asText(row.source_display_name) || asText(row.source_key) || "Не указано";
       const recruiter = pickRecruiterDisplayName(
-        asText(row.recruiter_display_name),
-        asText(row.recruiter_canonical)
+        normalizeText(row.recruiter_display_name),
+        normalizeText(row.recruiter_canonical)
       );
+      const department = normalizeUnknown(row.department);
+      const rawTeam = normalizeUnknown(row.division);
+      const team =
+        normalizeTextKey(rawTeam) === normalizeTextKey(department)
+          ? "Не указано"
+          : rawTeam;
 
       return {
         source,
         vacancyId: buildVacancySourceId(row, asText(row.total_vacancy_name) || asText(row.hf_vacancy_name) || source),
         vacancyTitle: asText(row.total_vacancy_name) || asText(row.hf_vacancy_name),
-        department: asText(row.department) || "Не указано",
-        team: asText(row.division) || "Не указано",
+        department,
+        team,
         recruiter,
         recruiterCanonical: asText(row.recruiter_canonical),
         vacancyStatus: normalizeStatus(asText(row.vacancy_lifecycle_status)),
@@ -670,12 +714,16 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
   vacancyRows.forEach((row, rowIndex) => {
     const id = rowIndex + 1;
     const sourceId = buildVacancySourceId(row, id);
-    const title = asText(row.total_vacancy_name) || `Вакансия ${id}`;
-    const department = asText(row.department) || "Не указано";
-    const team = asText(row.division) || "Не указано";
+    const title = normalizeText(row.total_vacancy_name) || normalizeText(row.vacancy_name) || `Вакансия ${id}`;
+    const department = normalizeUnknown(row.department);
+    const rawTeam = normalizeUnknown(row.division);
+    const team =
+      normalizeTextKey(rawTeam) === normalizeTextKey(department)
+        ? "Не указано"
+        : rawTeam;
     const recruiter = pickRecruiterDisplayName(
-      asText(row.recruiter_total),
-      asText(row.recruiter_canonical)
+      normalizeText(row.recruiter_total),
+      normalizeText(row.recruiter_canonical)
     );
     const lifecycleStatus = asText(row.vacancy_lifecycle_status);
     let status = lifecycleStatus ? normalizeStatus(lifecycleStatus) : normalizeStatus(asText(row.source_status_total));
@@ -709,7 +757,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       department,
       team,
       recruiter,
-      grade: asText(row.grade) || "Не указано",
+      grade: normalizeUnknown(row.grade),
       targetCloseDays,
       actualCloseDays,
       gradeTargetDays: targetCloseDays,
@@ -774,15 +822,19 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
   });
   const recruiterWorkload = Array.from(recruiterWorkloadByKey.values());
 
-  const departments = uniqueNonEmpty(vacancies.map((vacancy) => vacancy.department));
+  const departments = uniqueNormalizedOptions(vacancies.map((vacancy) => vacancy.department));
   const teams = Array.from(
     new Map(
       vacancies.map((vacancy) => [
-        `${vacancy.department}|||${vacancy.team}`,
+        normalizeTextKey(vacancy.team),
         { name: vacancy.team, department: vacancy.department }
       ])
     ).values()
-  );
+  ).sort((first, second) => {
+    if (first.name === "Не указано" && second.name !== "Не указано") return 1;
+    if (second.name === "Не указано" && first.name !== "Не указано") return -1;
+    return first.name.localeCompare(second.name, "ru");
+  });
   const recruitersByKey = new Map<string, string>();
   [
     ...recruiterWorkload.map((recruiter) => recruiter.name),
@@ -941,7 +993,7 @@ function CurrentMvp({
     });
 
   const departmentOptions = useMemo(
-    () => uniqueNonEmpty(filterVacanciesForOptions("department").map((vacancy) => vacancy.department)),
+    () => uniqueNormalizedOptions(filterVacanciesForOptions("department").map((vacancy) => vacancy.department)),
     [selectedTeam, selectedRecruiter, selectedVacancyId, vacancies]
   );
 
@@ -949,20 +1001,25 @@ function CurrentMvp({
     () => {
       const teamsByKey = new Map<string, Team>();
       filterVacanciesForOptions("team").forEach((vacancy) => {
-        const key = `${vacancy.department}|||${vacancy.team}`;
+        const teamName = normalizeUnknown(vacancy.team);
+        const key = normalizeTextKey(teamName);
         if (!teamsByKey.has(key)) {
-          teamsByKey.set(key, { name: vacancy.team, department: vacancy.department });
+          teamsByKey.set(key, { name: teamName, department: vacancy.department });
         }
       });
 
-      return Array.from(teamsByKey.values());
+      return Array.from(teamsByKey.values()).sort((first, second) => {
+        if (first.name === "Не указано" && second.name !== "Не указано") return 1;
+        if (second.name === "Не указано" && first.name !== "Не указано") return -1;
+        return first.name.localeCompare(second.name, "ru");
+      });
     },
     [selectedDepartment, selectedRecruiter, selectedVacancyId, vacancies]
   );
 
   const activeRecruiterOptions = useMemo(
     () => {
-      const recruiterNames = uniqueNonEmpty(filterVacanciesForOptions("recruiter").map((vacancy) => vacancy.recruiter));
+      const recruiterNames = uniqueNormalizedOptions(filterVacanciesForOptions("recruiter").map((vacancy) => vacancy.recruiter));
       return ACTIVE_RECRUITERS.filter((activeRecruiter) =>
         recruiterNames.some((recruiter) => normalizeRecruiterKey(recruiter) === normalizeRecruiterKey(activeRecruiter))
       );
@@ -972,15 +1029,22 @@ function CurrentMvp({
 
   const vacancyOptions = useMemo(
     () =>
-      filterVacanciesForOptions("vacancy").map((vacancy) => ({
-        value: vacancy.sourceId,
-        label: [
-          vacancy.title,
-          vacancy.openDateDisplay,
-          statusLabel(vacancy.status),
-          vacancy.recruiter
-        ].filter(Boolean).join(" — ")
-      })),
+      Array.from(
+        new Map(
+          filterVacanciesForOptions("vacancy").map((vacancy) => [
+            vacancy.sourceId,
+            {
+              value: vacancy.sourceId,
+              label: [
+                vacancy.title,
+                vacancy.openDateDisplay,
+                statusLabel(vacancy.status),
+                vacancy.recruiter
+              ].filter(Boolean).join(" — ")
+            }
+          ])
+        ).values()
+      ).sort((first, second) => first.label.localeCompare(second.label, "ru")),
     [selectedDepartment, selectedTeam, selectedRecruiter, vacancies]
   );
 
