@@ -961,6 +961,7 @@ function CurrentMvp({
   const [showInactiveRecruiters, setShowInactiveRecruiters] = useState(false);
   const [showAllTimingRows, setShowAllTimingRows] = useState(false);
   const [funnelScope, setFunnelScope] = useState<"stages" | "recruiters">("stages");
+  const [funnelStageMode, setFunnelStageMode] = useState<"fromNew" | "step">("fromNew");
   const [funnelView, setFunnelView] = useState<"table" | "chart">("table");
   const [interviewTarget, setInterviewTarget] = useState<"offer" | "accepted">("offer");
   const [departmentView, setDepartmentView] = useState<"table" | "chart">("table");
@@ -992,6 +993,7 @@ function CurrentMvp({
     setShowInactiveRecruiters(false);
     setShowAllTimingRows(false);
     setFunnelScope("stages");
+    setFunnelStageMode("fromNew");
     setFunnelView("table");
     setInterviewTarget("offer");
     setDepartmentView("table");
@@ -1349,17 +1351,33 @@ function CurrentMvp({
     }
   ];
 
-  const funnelBaseCount = funnelStageCounts.find((item) => item.stage === "Новые")?.count || funnelStageCounts[0]?.count || 0;
-  const funnel = funnelStageCounts
-    .filter((item) => item.count > 0)
-    .map((item) => ({
-      ...item,
-      conversion: item.stage === "Новые" ? "100%" : percentOneDecimal(item.count, funnelBaseCount)
-    }));
+  const visibleFunnelStageCounts = funnelStageCounts.filter((item) => item.count > 0);
+  const funnelBaseCount =
+    visibleFunnelStageCounts.find((item) => item.stage === "Новые")?.count || visibleFunnelStageCounts[0]?.count || 0;
+  const funnelFromNewRows = visibleFunnelStageCounts.map((item) => ({
+    ...item,
+    transition: item.stage,
+    conversion: item.stage === "Новые" ? "100%" : percentOneDecimal(item.count, funnelBaseCount),
+    conversionValue: funnelBaseCount > 0 ? (item.count / funnelBaseCount) * 100 : 0,
+    previousStage: ""
+  }));
+  const funnelStepRows = visibleFunnelStageCounts.map((item, index, stages) => {
+    const previousStage = stages[index - 1];
+    const conversionValue =
+      index === 0 ? 100 : previousStage && previousStage.count > 0 ? (item.count / previousStage.count) * 100 : 0;
 
-  const funnelTotal = funnel.reduce((sum, item) => sum + item.count, 0);
+    return {
+      ...item,
+      transition: index === 0 || !previousStage ? "Новые" : `${previousStage.stage} → ${item.stage}`,
+      conversion: index === 0 ? "100%" : previousStage && previousStage.count > 0 ? `${conversionValue.toFixed(1)}%` : "—",
+      conversionValue,
+      previousStage: previousStage?.stage || ""
+    };
+  });
+  const funnel = funnelStageMode === "fromNew" ? funnelFromNewRows : funnelStepRows;
+
   const funnelDonutBackground = buildConicGradient(
-    funnel.map((item) => item.count),
+    funnelFromNewRows.map((item) => item.count),
     FUNNEL_CHART_COLORS
   );
   const recruiterFunnelByKey = new Map<
@@ -1849,7 +1867,7 @@ function CurrentMvp({
             <div className="section-heading with-controls funnel-heading">
               <div>
                 <h2>Воронка подбора</h2>
-                <span>Этапы Huntflow по выбранному рекрутеру / департаменту / отделу / вакансии · доля от “Новые”</span>
+                <span>Этапы Huntflow по выбранному рекрутеру / департаменту / отделу / вакансии</span>
               </div>
 
               <div className="segmented-control" aria-label="Срез воронки">
@@ -1871,8 +1889,42 @@ function CurrentMvp({
             </div>
 
             <div className="funnel-subtoolbar">
-              <span>{funnelScope === "stages" ? "Доля от этапа “Новые”" : "Сравнение рекрутеров по этапам Huntflow"}</span>
-              <div className="segmented-control compact" aria-label="Вид отображения воронки">
+              <div>
+                <strong>
+                  {funnelScope === "stages"
+                    ? "Конверсия по этапам"
+                    : "Сравнение рекрутеров по этапам Huntflow"}
+                </strong>
+                <span>
+                  {funnelScope === "stages" && funnelStageMode === "fromNew"
+                    ? "Каждый этап считается от общего числа новых кандидатов"
+                    : funnelScope === "stages"
+                      ? "Конверсия считается от предыдущего отображаемого этапа"
+                      : "Новые, интервью, Job offer и “Оффер принят” по рекрутерам"}
+                </span>
+              </div>
+
+              <div className="funnel-toolbar-controls">
+                {funnelScope === "stages" && (
+                  <div className="segmented-control compact" aria-label="Логика расчета воронки по этапам">
+                    <button
+                      type="button"
+                      className={funnelStageMode === "fromNew" ? "active" : ""}
+                      onClick={() => setFunnelStageMode("fromNew")}
+                    >
+                      От новых
+                    </button>
+                    <button
+                      type="button"
+                      className={funnelStageMode === "step" ? "active" : ""}
+                      onClick={() => setFunnelStageMode("step")}
+                    >
+                      Из этапа в этап
+                    </button>
+                  </div>
+                )}
+
+                <div className="segmented-control compact" aria-label="Вид отображения воронки">
                 <button
                   type="button"
                   className={funnelView === "table" ? "active" : ""}
@@ -1887,25 +1939,35 @@ function CurrentMvp({
                 >
                   Диаграмма
                 </button>
+                </div>
               </div>
             </div>
 
-            {funnel.length === 0 ? (
+            {funnelScope === "stages" && funnel.length === 0 ? (
               <p className="empty-state">Загрузите Excel, чтобы увидеть воронку подбора.</p>
             ) : funnelScope === "stages" && funnelView === "table" ? (
               <div className="table-wrap compact-table-wrap funnel-table-wrap">
                 <table className="funnel-table">
                   <thead>
                     <tr>
-                      <th>Этап</th>
+                      <th>{funnelStageMode === "fromNew" ? "Этап" : "Переход"}</th>
                       <th>Кандидаты</th>
-                      <th>Доля от новых</th>
+                      <th>{funnelStageMode === "fromNew" ? "Доля от новых" : "Конверсия из предыдущего этапа"}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {funnel.map((item) => (
-                      <tr key={item.stage}>
-                        <td className="primary-cell">{item.stage}</td>
+                      <tr key={funnelStageMode === "fromNew" ? item.stage : item.transition}>
+                        <td className="primary-cell">
+                          {funnelStageMode === "fromNew" ? (
+                            item.stage
+                          ) : (
+                            <span className="transition-cell">
+                              <strong>{item.transition}</strong>
+                              {item.previousStage && <small>из: {item.previousStage}</small>}
+                            </span>
+                          )}
+                        </td>
                         <td>{item.count}</td>
                         <td>{item.conversion}</td>
                       </tr>
@@ -1913,7 +1975,7 @@ function CurrentMvp({
                   </tbody>
                 </table>
               </div>
-            ) : funnelScope === "stages" ? (
+            ) : funnelScope === "stages" && funnelStageMode === "fromNew" ? (
               <div className="donut-panel">
                 <div
                   className="donut-chart"
@@ -1921,20 +1983,39 @@ function CurrentMvp({
                   aria-label="Распределение кандидатов по этапам"
                 >
                   <span>100%</span>
-                  <small>этапы</small>
+                  <small>от новых</small>
                 </div>
                 <div className="donut-legend">
-                  <p className="metric-explain">Распределение кандидатов по этапам</p>
-                  {funnel.map((item, index) => (
+                  <p className="metric-explain">Доля этапов от общего числа новых кандидатов</p>
+                  {funnelFromNewRows.map((item, index) => (
                     <div className="legend-row" key={item.stage}>
                       <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
                       <div>
                         <span>{item.stage}</span>
-                        <strong>{percentOneDecimal(item.count, funnelTotal)}</strong>
+                        <strong>{item.conversion}</strong>
                       </div>
                     </div>
                   ))}
                 </div>
+              </div>
+            ) : funnelScope === "stages" ? (
+              <div className="funnel-step-chart">
+                {funnelStepRows.map((item) => (
+                  <div className="funnel-step-row" key={item.transition}>
+                    <div className="funnel-step-label">
+                      <strong>{item.transition}</strong>
+                      <span>
+                        {item.count} кандидатов · {item.conversion}
+                      </span>
+                    </div>
+                    <div className="funnel-track">
+                      <div
+                        className="funnel-bar"
+                        style={{ width: `${Math.min(Math.max(item.conversionValue, 0), 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : recruiterFunnelRows.length === 0 ? (
               <p className="empty-state">По выбранным фильтрам данных по рекрутерам нет.</p>
