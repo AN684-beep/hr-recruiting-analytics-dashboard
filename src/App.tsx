@@ -33,6 +33,7 @@ const DEFAULT_VACANCY = "Все вакансии";
 const DEFAULT_STATUS = "Все статусы";
 const DEFAULT_TIMING_SORT = "Без сортировки";
 const DEFAULT_TIMING_SLA = "Все";
+const DEFAULT_PERIOD_MODE = "Были в работе";
 const SHOW_DIAGNOSTICS = false;
 const FUNNEL_CHART_COLORS = ["#2563eb", "#3b82f6", "#06b6d4", "#8b5cf6", "#f59e0b", "#10b981"];
 const DEPARTMENT_CHART_COLORS = ["#2563eb", "#8b5cf6", "#14b8a6", "#f59e0b", "#3b82f6", "#a78bfa", "#0ea5e9", "#10b981", "#64748b", "#ef4444", "#60a5fa", "#94a3b8", "#ec4899", "#93c5fd"];
@@ -62,6 +63,7 @@ const TIMING_SORT_OPTIONS = [
   "Сначала старые"
 ];
 const TIMING_SLA_OPTIONS = [DEFAULT_TIMING_SLA, "В срок", "Просрочено", "Нет данных"];
+const PERIOD_MODE_OPTIONS = ["Были в работе", "Дате открытия", "Дате закрытия"];
 const ACTIVE_RECRUITERS = ["Алла", "Катя", "Маша", "Лена", "Настя"];
 
 type Vacancy = {
@@ -81,6 +83,7 @@ type Vacancy = {
   daysToClose: number;
   slaDays: number;
   openDate: number;
+  closeDate: number;
   openDateDisplay: string;
   closeDateDisplay: string;
   funnelStages: Record<string, number>;
@@ -299,9 +302,34 @@ const daysBetween = (start: unknown, end: unknown) => {
   return asValidDays(diff);
 };
 
+const startOfDateOnly = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
 const dateTimestamp = (value: unknown) => {
   const date = asDate(value);
-  return date ? date.getTime() : 0;
+  return date ? startOfDateOnly(date) : 0;
+};
+
+const parseDateInput = (value: string) => {
+  if (!value) {
+    return 0;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return 0;
+  }
+
+  return new Date(year, month - 1, day).getTime();
+};
+
+const toDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 };
 
 const sortUnknownLast = (values: string[]) =>
@@ -591,8 +619,8 @@ const buildSourceSummary = (rows: ExcelRow[]): SourceSummaryItem[] =>
 
       return {
         source,
-        vacancyId: buildVacancySourceId(row, asText(row.total_vacancy_name) || asText(row.hf_vacancy_name) || source),
-        vacancyTitle: asText(row.total_vacancy_name) || asText(row.hf_vacancy_name),
+        vacancyId: buildVacancySourceId(row, normalizeText(row.total_vacancy_name) || normalizeText(row.hf_vacancy_name) || source),
+        vacancyTitle: normalizeText(row.total_vacancy_name) || normalizeText(row.hf_vacancy_name),
         department,
         team,
         recruiter,
@@ -770,6 +798,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       daysToClose,
       slaDays,
       openDate: dateTimestamp(row.open_date || row.open_date_total),
+      closeDate: dateTimestamp(row.close_date || row.close_date_total || row.actual_close_date || row.hf_actual_close_date),
       openDateDisplay: asText(row.open_date_display),
       closeDateDisplay: asText(row.close_date_display),
       funnelStages: {
@@ -921,6 +950,9 @@ function CurrentMvp({
   const [selectedTeam, setSelectedTeam] = useState(DEFAULT_TEAM);
   const [selectedRecruiter, setSelectedRecruiter] = useState(DEFAULT_RECRUITER);
   const [selectedVacancyId, setSelectedVacancyId] = useState(DEFAULT_VACANCY);
+  const [periodFrom, setPeriodFrom] = useState("");
+  const [periodTo, setPeriodTo] = useState("");
+  const [periodMode, setPeriodMode] = useState(DEFAULT_PERIOD_MODE);
   const [timingStatusFilter, setTimingStatusFilter] = useState(DEFAULT_STATUS);
   const [timingSort, setTimingSort] = useState(DEFAULT_TIMING_SORT);
   const [timingSlaFilter, setTimingSlaFilter] = useState(DEFAULT_TIMING_SLA);
@@ -949,6 +981,9 @@ function CurrentMvp({
     setSelectedTeam(DEFAULT_TEAM);
     setSelectedRecruiter(DEFAULT_RECRUITER);
     setSelectedVacancyId(DEFAULT_VACANCY);
+    setPeriodFrom("");
+    setPeriodTo("");
+    setPeriodMode(DEFAULT_PERIOD_MODE);
     setTimingStatusFilter(DEFAULT_STATUS);
     setTimingSort(DEFAULT_TIMING_SORT);
     setTimingSlaFilter(DEFAULT_TIMING_SLA);
@@ -961,6 +996,43 @@ function CurrentMvp({
     setInterviewTarget("offer");
     setDepartmentView("table");
     setSourcesView("table");
+  };
+
+  const resetPeriod = () => {
+    setPeriodFrom("");
+    setPeriodTo("");
+    setPeriodMode(DEFAULT_PERIOD_MODE);
+    setRiskIndex(0);
+    setShowAllRecruiters(false);
+    setShowAllTimingRows(false);
+  };
+
+  const applyPeriodPreset = (preset: "all" | "currentMonth" | "previousMonth" | "last30Days") => {
+    const today = new Date();
+
+    if (preset === "all") {
+      resetPeriod();
+      return;
+    }
+
+    if (preset === "currentMonth") {
+      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)));
+      setPeriodTo(toDateInputValue(new Date(today.getFullYear(), today.getMonth() + 1, 0)));
+    }
+
+    if (preset === "previousMonth") {
+      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth() - 1, 1)));
+      setPeriodTo(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 0)));
+    }
+
+    if (preset === "last30Days") {
+      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29)));
+      setPeriodTo(toDateInputValue(today));
+    }
+
+    setRiskIndex(0);
+    setShowAllRecruiters(false);
+    setShowAllTimingRows(false);
   };
 
   const vacancyMatchesFilters = (
@@ -987,12 +1059,37 @@ function CurrentMvp({
     return departmentMatch && teamMatch && recruiterMatch && vacancyMatch;
   };
 
+  const vacancyMatchesPeriod = (vacancy: Vacancy) => {
+    const fromTimestamp = parseDateInput(periodFrom);
+    const toTimestamp = parseDateInput(periodTo);
+
+    if (!fromTimestamp && !toTimestamp) {
+      return true;
+    }
+
+    const startsAfterFrom = (timestamp: number) => !fromTimestamp || (timestamp > 0 && timestamp >= fromTimestamp);
+    const endsBeforeTo = (timestamp: number) => !toTimestamp || (timestamp > 0 && timestamp <= toTimestamp);
+
+    if (periodMode === "Дате открытия") {
+      return startsAfterFrom(vacancy.openDate) && endsBeforeTo(vacancy.openDate);
+    }
+
+    if (periodMode === "Дате закрытия") {
+      return startsAfterFrom(vacancy.closeDate) && endsBeforeTo(vacancy.closeDate);
+    }
+
+    const openedBeforePeriodEnd = !toTimestamp || (vacancy.openDate > 0 && vacancy.openDate <= toTimestamp);
+    const notClosedBeforePeriodStart = !fromTimestamp || vacancy.closeDate === 0 || vacancy.closeDate >= fromTimestamp;
+
+    return openedBeforePeriodEnd && notClosedBeforePeriodStart;
+  };
+
   const filterVacanciesForOptions = (skippedFilter: "department" | "team" | "recruiter" | "vacancy") =>
     vacancies.filter((vacancy) => vacancyMatchesFilters(vacancy, skippedFilter));
 
   const filterVacanciesByCurrentSelection = () =>
     vacancies.filter((vacancy) => {
-      return vacancyMatchesFilters(vacancy);
+      return vacancyMatchesFilters(vacancy) && vacancyMatchesPeriod(vacancy);
     });
 
   const departmentOptions = useMemo(
@@ -1074,12 +1171,21 @@ function CurrentMvp({
 
   const funnelFilteredVacancies = useMemo(
     () => filterVacanciesByCurrentSelection(),
-    [selectedDepartment, selectedTeam, selectedRecruiter, selectedVacancyId, vacancies]
+    [selectedDepartment, selectedTeam, selectedRecruiter, selectedVacancyId, periodFrom, periodTo, periodMode, vacancies]
   );
 
   const filteredVacancies = funnelFilteredVacancies;
 
   const filteredVacancyIds = filteredVacancies.map((vacancy) => vacancy.id);
+  const filteredVacancySourceIds = new Set(filteredVacancies.map((vacancy) => vacancy.sourceId));
+  const filteredVacancyTitles = new Set(filteredVacancies.map((vacancy) => vacancy.title));
+  const isPeriodActive = periodFrom !== "" || periodTo !== "";
+  const isVacancyScoped =
+    selectedDepartment !== DEFAULT_DEPARTMENT ||
+    selectedTeam !== DEFAULT_TEAM ||
+    selectedRecruiter !== DEFAULT_RECRUITER ||
+    selectedVacancyId !== DEFAULT_VACANCY ||
+    isPeriodActive;
   const filteredOffers = offers.filter((offer) => filteredVacancyIds.includes(offer.vacancyId));
 
   const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
@@ -1306,8 +1412,9 @@ function CurrentMvp({
       source.recruiter === selectedRecruiter ||
       source.recruiterCanonical === selectedRecruiter;
     const vacancyMatch =
-      selectedVacancyId === DEFAULT_VACANCY ||
-      source.vacancyId === selectedVacancyId ||
+      !isVacancyScoped ||
+      filteredVacancySourceIds.has(source.vacancyId) ||
+      filteredVacancyTitles.has(source.vacancyTitle) ||
       (selectedVacancy ? source.vacancyTitle === selectedVacancy.title : false);
 
     return departmentMatch && teamMatch && recruiterMatch && vacancyMatch;
@@ -1435,11 +1542,7 @@ function CurrentMvp({
     )
     .filter((recruiter) => showInactiveRecruiters || isActiveRecruiter(recruiter.name))
     .filter((recruiter) => {
-      if (
-        selectedDepartment === DEFAULT_DEPARTMENT &&
-        selectedTeam === DEFAULT_TEAM &&
-        selectedVacancyId === DEFAULT_VACANCY
-      ) {
+      if (!isVacancyScoped) {
         return true;
       }
 
@@ -1614,6 +1717,71 @@ function CurrentMvp({
           </label>
 
         </div>
+
+        <div className="period-filters" aria-label="Фильтр периода">
+          <div className="period-heading">
+            <strong>Период</strong>
+            <span>Период применяется по связанным вакансиям</span>
+          </div>
+
+          <div className="period-grid">
+            <label>
+              <span>Дата с</span>
+              <input
+                type="date"
+                value={periodFrom}
+                onChange={(event) => {
+                  setPeriodFrom(event.target.value);
+                  setRiskIndex(0);
+                  setShowAllRecruiters(false);
+                  setShowAllTimingRows(false);
+                }}
+              />
+            </label>
+
+            <label>
+              <span>Дата по</span>
+              <input
+                type="date"
+                value={periodTo}
+                onChange={(event) => {
+                  setPeriodTo(event.target.value);
+                  setRiskIndex(0);
+                  setShowAllRecruiters(false);
+                  setShowAllTimingRows(false);
+                }}
+              />
+            </label>
+
+            <label>
+              <span>Считать по</span>
+              <select
+                value={periodMode}
+                onChange={(event) => {
+                  setPeriodMode(event.target.value);
+                  setRiskIndex(0);
+                  setShowAllRecruiters(false);
+                  setShowAllTimingRows(false);
+                }}
+              >
+                {PERIOD_MODE_OPTIONS.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+
+            <button className="secondary-button" type="button" onClick={resetPeriod}>
+              Сбросить период
+            </button>
+          </div>
+
+          <div className="period-presets" aria-label="Быстрый выбор периода">
+            <button type="button" onClick={() => applyPeriodPreset("all")}>Весь период</button>
+            <button type="button" onClick={() => applyPeriodPreset("currentMonth")}>Этот месяц</button>
+            <button type="button" onClick={() => applyPeriodPreset("previousMonth")}>Прошлый месяц</button>
+            <button type="button" onClick={() => applyPeriodPreset("last30Days")}>Последние 30 дней</button>
+          </div>
+        </div>
       </section>
 
       <section className="kpi-grid" aria-label="Главные показатели">
@@ -1625,6 +1793,13 @@ function CurrentMvp({
           </article>
         ))}
       </section>
+
+      {isExcelLoaded && vacancies.length > 0 && filteredVacancies.length === 0 && (
+        <section className="empty-state period-empty-state">
+          <strong>По выбранному периоду данных нет</strong>
+          <span>Попробуйте изменить режим периода: по открытию, закрытию или активности в периоде.</span>
+        </section>
+      )}
 
       <section className="two-column-layout">
         <div className="main-column">
