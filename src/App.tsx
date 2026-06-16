@@ -1374,7 +1374,10 @@ function CurrentMvp({
       previousStage: previousStage?.stage || ""
     };
   });
-  const funnel = funnelStageMode === "fromNew" ? funnelFromNewRows : funnelStepRows;
+  const isSpecificVacancySelected = selectedVacancyId !== DEFAULT_VACANCY;
+  const funnel = funnelStageMode === "fromNew" ? funnelFromNewRows : isSpecificVacancySelected ? funnelStepRows : [];
+  const hasStepConversionWarning =
+    isSpecificVacancySelected && funnelStepRows.some((item) => item.previousStage && item.conversionValue > 100);
 
   const funnelDonutBackground = buildConicGradient(
     funnelFromNewRows.map((item) => item.count),
@@ -1891,15 +1894,19 @@ function CurrentMvp({
             <div className="funnel-subtoolbar">
               <div>
                 <strong>
-                  {funnelScope === "stages"
-                    ? "Конверсия по этапам"
-                    : "Сравнение рекрутеров по этапам Huntflow"}
+                  {funnelScope === "stages" && funnelStageMode === "fromNew"
+                    ? "Конверсия от новых"
+                    : funnelScope === "stages"
+                      ? "Конверсия из этапа в этап"
+                      : "Сравнение рекрутеров по этапам Huntflow"}
                 </strong>
                 <span>
                   {funnelScope === "stages" && funnelStageMode === "fromNew"
                     ? "Каждый этап считается от общего числа новых кандидатов"
                     : funnelScope === "stages"
-                      ? "Конверсия считается от предыдущего отображаемого этапа"
+                      ? isSpecificVacancySelected
+                        ? "Каждый этап считается от предыдущего отображаемого этапа в маршруте выбранной вакансии"
+                        : "Выберите конкретную вакансию, чтобы посмотреть корректную конверсию между этапами"
                       : "Новые, интервью, Job offer и “Оффер принят” по рекрутерам"}
                 </span>
               </div>
@@ -1943,7 +1950,15 @@ function CurrentMvp({
               </div>
             </div>
 
-            {funnelScope === "stages" && funnel.length === 0 ? (
+            {funnelScope === "stages" && funnelStageMode === "step" && !isSpecificVacancySelected ? (
+              <div className="empty-state funnel-info-state">
+                <strong>Выберите конкретную вакансию, чтобы посмотреть конверсию из этапа в этап.</strong>
+                <span>
+                  У разных вакансий могут быть разные маршруты этапов, поэтому общая конверсия между соседними
+                  этапами может быть некорректной.
+                </span>
+              </div>
+            ) : funnelScope === "stages" && funnel.length === 0 ? (
               <p className="empty-state">Загрузите Excel, чтобы увидеть воронку подбора.</p>
             ) : funnelScope === "stages" && funnelView === "table" ? (
               <div className="table-wrap compact-table-wrap funnel-table-wrap">
@@ -1974,6 +1989,9 @@ function CurrentMvp({
                     ))}
                   </tbody>
                 </table>
+                {funnelStageMode === "step" && hasStepConversionWarning && (
+                  <p className="table-footnote">Возможны альтернативные маршруты кандидатов: часть переходов выше 100%.</p>
+                )}
               </div>
             ) : funnelScope === "stages" && funnelStageMode === "fromNew" ? (
               <div className="donut-panel">
@@ -2016,6 +2034,9 @@ function CurrentMvp({
                     </div>
                   </div>
                 ))}
+                {hasStepConversionWarning && (
+                  <p className="metric-explain warning-text">Возможны альтернативные маршруты кандидатов.</p>
+                )}
               </div>
             ) : recruiterFunnelRows.length === 0 ? (
               <p className="empty-state">По выбранным фильтрам данных по рекрутерам нет.</p>
