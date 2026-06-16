@@ -834,6 +834,16 @@ p {
   white-space: nowrap;
 }
 
+.funnel-info-state {
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(180deg, #ffffff 0%, var(--color-blue-soft) 100%);
+}
+
+.warning-text {
+  color: var(--color-amber);
+  font-weight: 800;
+}
+
 .funnel-table-wrap,
 .recruiter-funnel-table-wrap {
   display: block;
