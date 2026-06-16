@@ -1035,6 +1035,29 @@ function CurrentMvp({
     setShowAllTimingRows(false);
   };
 
+  const today = new Date();
+  const currentMonthRange = {
+    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)),
+    to: toDateInputValue(new Date(today.getFullYear(), today.getMonth() + 1, 0))
+  };
+  const previousMonthRange = {
+    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+    to: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 0))
+  };
+  const last30DaysRange = {
+    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29)),
+    to: toDateInputValue(today)
+  };
+  const periodPresetClass = (preset: "all" | "currentMonth" | "previousMonth" | "last30Days") => {
+    const isActive =
+      (preset === "all" && periodFrom === "" && periodTo === "") ||
+      (preset === "currentMonth" && periodFrom === currentMonthRange.from && periodTo === currentMonthRange.to) ||
+      (preset === "previousMonth" && periodFrom === previousMonthRange.from && periodTo === previousMonthRange.to) ||
+      (preset === "last30Days" && periodFrom === last30DaysRange.from && periodTo === last30DaysRange.to);
+
+    return isActive ? "active" : "";
+  };
+
   const vacancyMatchesFilters = (
     vacancy: Vacancy,
     skippedFilter?: "department" | "team" | "recruiter" | "vacancy"
@@ -1715,7 +1738,6 @@ function CurrentMvp({
               ))}
             </select>
           </label>
-
         </div>
 
         <div className="period-filters" aria-label="Фильтр периода">
@@ -1776,10 +1798,30 @@ function CurrentMvp({
           </div>
 
           <div className="period-presets" aria-label="Быстрый выбор периода">
-            <button type="button" onClick={() => applyPeriodPreset("all")}>Весь период</button>
-            <button type="button" onClick={() => applyPeriodPreset("currentMonth")}>Этот месяц</button>
-            <button type="button" onClick={() => applyPeriodPreset("previousMonth")}>Прошлый месяц</button>
-            <button type="button" onClick={() => applyPeriodPreset("last30Days")}>Последние 30 дней</button>
+            <button className={periodPresetClass("all")} type="button" onClick={() => applyPeriodPreset("all")}>
+              Весь период
+            </button>
+            <button
+              className={periodPresetClass("currentMonth")}
+              type="button"
+              onClick={() => applyPeriodPreset("currentMonth")}
+            >
+              Этот месяц
+            </button>
+            <button
+              className={periodPresetClass("previousMonth")}
+              type="button"
+              onClick={() => applyPeriodPreset("previousMonth")}
+            >
+              Прошлый месяц
+            </button>
+            <button
+              className={periodPresetClass("last30Days")}
+              type="button"
+              onClick={() => applyPeriodPreset("last30Days")}
+            >
+              Последние 30 дней
+            </button>
           </div>
         </div>
       </section>
