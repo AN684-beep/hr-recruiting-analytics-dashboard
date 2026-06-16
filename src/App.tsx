@@ -722,8 +722,11 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
         ? "Не указано"
         : rawTeam;
     const recruiter = pickRecruiterDisplayName(
+      normalizeText(row.recruiter_canonical),
+      normalizeText(row.recruiter_display_name),
       normalizeText(row.recruiter_total),
-      normalizeText(row.recruiter_canonical)
+      normalizeText(row.total_recruiter),
+      normalizeText(row.recruiter)
     );
     const lifecycleStatus = asText(row.vacancy_lifecycle_status);
     let status = lifecycleStatus ? normalizeStatus(lifecycleStatus) : normalizeStatus(asText(row.source_status_total));
@@ -1017,13 +1020,8 @@ function CurrentMvp({
     [selectedDepartment, selectedRecruiter, selectedVacancyId, vacancies]
   );
 
-  const activeRecruiterOptions = useMemo(
-    () => {
-      const recruiterNames = uniqueNormalizedOptions(filterVacanciesForOptions("recruiter").map((vacancy) => vacancy.recruiter));
-      return ACTIVE_RECRUITERS.filter((activeRecruiter) =>
-        recruiterNames.some((recruiter) => normalizeRecruiterKey(recruiter) === normalizeRecruiterKey(activeRecruiter))
-      );
-    },
+  const recruiterOptions = useMemo(
+    () => uniqueNormalizedOptions(filterVacanciesForOptions("recruiter").map((vacancy) => vacancy.recruiter)),
     [selectedDepartment, selectedTeam, selectedVacancyId, vacancies]
   );
 
@@ -1063,10 +1061,10 @@ function CurrentMvp({
   }, [availableTeams, selectedTeam]);
 
   useEffect(() => {
-    if (selectedRecruiter !== DEFAULT_RECRUITER && !activeRecruiterOptions.includes(selectedRecruiter)) {
+    if (selectedRecruiter !== DEFAULT_RECRUITER && !recruiterOptions.includes(selectedRecruiter)) {
       setSelectedRecruiter(DEFAULT_RECRUITER);
     }
-  }, [activeRecruiterOptions, selectedRecruiter]);
+  }, [recruiterOptions, selectedRecruiter]);
 
   useEffect(() => {
     if (selectedVacancyId !== DEFAULT_VACANCY && !vacancyOptions.some((vacancy) => vacancy.value === selectedVacancyId)) {
@@ -1589,7 +1587,7 @@ function CurrentMvp({
               }}
             >
               <option>{DEFAULT_RECRUITER}</option>
-              {activeRecruiterOptions.map((recruiter) => (
+              {recruiterOptions.map((recruiter) => (
                 <option key={recruiter}>{recruiter}</option>
               ))}
             </select>
