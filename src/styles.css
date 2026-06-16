@@ -479,6 +479,99 @@ p {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
+.period-filters {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  border-top: 1px solid #e7edf5;
+  padding-top: 14px;
+}
+
+.period-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.period-heading strong {
+  color: #172033;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.period-heading span {
+  color: #748196;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.period-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.period-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.period-grid label span {
+  color: #5f6f84;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.period-grid input,
+.period-grid select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #d8e1ed;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #172033;
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.period-grid input:focus,
+.period-grid select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.period-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.period-presets button {
+  min-height: 30px;
+  border: 1px solid #d8e1ed;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #526174;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.period-presets button:hover {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.period-empty-state {
+  margin-bottom: 16px;
+}
+
 .selected-summary {
   margin-bottom: 16px;
 }
@@ -1569,6 +1662,10 @@ tbody tr.selected-row td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .period-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .two-column-layout {
     grid-template-columns: 1fr;
   }
@@ -1601,10 +1698,16 @@ tbody tr.selected-row td {
   .kpi-grid,
   .summary-metrics-grid,
   .filters-grid,
+  .period-grid,
   .table-toolbar,
   .sla-summary,
   .offer-summary {
     grid-template-columns: 1fr;
+  }
+
+  .period-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .kpi-card {
