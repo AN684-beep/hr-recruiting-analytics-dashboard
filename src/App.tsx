@@ -1893,7 +1893,7 @@ function CurrentMvp({
         <div className="header-copy">
           <p className="eyebrow">Внутренняя HR-аналитика</p>
           <h1>Аналитика рекрутмента</h1>
-          <p className="description">Контроль вакансий, воронки, SLA и нагрузки команды</p>
+          <p className="description">Дашборд по вакансиям, воронке подбора, SLA, офферам, источникам кандидатов и показателям рекрутеров</p>
         </div>
 
         <div className="upload-card" aria-label="Загрузка Excel">
@@ -2081,7 +2081,7 @@ function CurrentMvp({
             </label>
 
             <button className="secondary-button" type="button" onClick={resetPeriod}>
-              Сбросить период
+              Сбросить фильтры периода
             </button>
           </div>
 
@@ -2505,7 +2505,6 @@ function CurrentMvp({
                     <option key={option}>{option}</option>
                   ))}
                 </select>
-                {!timingRowsHaveDates && <small>Даты появятся после обновления файла данных</small>}
               </label>
 
               <label>
@@ -2612,7 +2611,7 @@ function CurrentMvp({
 
             <div className="breakdown-list">
               {declineReasons.length === 0 ? (
-                <p className="empty-state compact">Разница между группами «Оффер выставлен» и «Оффер принят» отсутствует.</p>
+                <p className="empty-state compact">Разница между «Оффер выставлен» и «Оффер принят» отсутствует.</p>
               ) : (
                 declineReasons.slice(0, 4).map((item) => (
                   <div className="reason-item" key={item.reason}>
@@ -2624,13 +2623,15 @@ function CurrentMvp({
                 ))
               )}
             </div>
-            <p className="metric-explain">Разница между группами «Оффер выставлен» и «Оффер принят».</p>
+            {declineReasons.length > 0 && (
+              <p className="metric-explain">Разница между «Оффер выставлен» и «Оффер принят».</p>
+            )}
           </article>
 
           <article className="section-card interview-card">
             <div className="section-heading with-controls">
               <div>
-                <h2>Рекрутерские интервью →</h2>
+                <h2>Рекрутер →</h2>
                 <span>Конверсия из этапа «Рекрутер»</span>
               </div>
 
@@ -2660,7 +2661,7 @@ function CurrentMvp({
             ) : (
               <div className="offer-summary">
                 <div>
-                  <span>Этап «Рекрутер»</span>
+                  <span>Рекрутер</span>
                   <strong>{currentRecruiterStageCount}</strong>
                 </div>
                 <div>
