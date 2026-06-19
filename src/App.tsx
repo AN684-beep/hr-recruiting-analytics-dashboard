@@ -68,6 +68,26 @@ const TIMING_SORT_OPTIONS = [
 const TIMING_SLA_OPTIONS = [DEFAULT_TIMING_SLA, "В срок", "Просрочено", "Нет данных"];
 const PERIOD_MODE_OPTIONS = ["Были в работе", "Дате открытия", "Дате закрытия"];
 const ACTIVE_RECRUITERS = ["Алла", "Катя", "Маша", "Лена", "Настя"];
+const INFO_TEXTS = {
+  quality:
+    "Файл загружен и прошел проверку. Критичных ошибок нет: вакансии, рекрутеры, источники и этапы сопоставились корректно.",
+  filters:
+    "Фильтры меняют все основные блоки дашборда. Период можно считать по дате открытия, дате закрытия или по вакансиям, которые были в работе в выбранные даты.",
+  kpi:
+    "Показатели считаются по выбранным фильтрам. Офферы берутся из Huntflow: “Всего офферов” — этап Job offer, “Принято офферов” — этап “Оффер принят”.",
+  funnel:
+    "Воронка собрана из этапов Huntflow. Похожие этапы объединены, чтобы было проще смотреть общую картину по вакансиям и рекрутерам.",
+  funnelMode:
+    "“От новых” показывает, какая доля кандидатов дошла до каждого этапа от общего числа новых. “Из этапа в этап” показывает переход от одного этапа к следующему.",
+  testing:
+    "Тестирование есть не во всех вакансиях. Поэтому оффер считается не от тестирования, а от предыдущего основного этапа.",
+  sla:
+    "Сроки считаются по выбранным вакансиям. Замороженные вакансии не учитываются в средних сроках и SLA, чтобы не искажать результат.",
+  recruiters:
+    "Показывает вакансии и результаты по рекрутерам: активные и закрытые вакансии, этапы Huntflow, офферы, отклики и стоимость отклика из HeadHunter. Рекрутер берется из Total.",
+  sources:
+    "Показывает, откуда пришли кандидаты по выбранным вакансиям. Источники не объединяются: например, HeadHunter и “Отклик с HeadHunter” считаются отдельно."
+};
 
 type Vacancy = {
   id: number;
@@ -982,6 +1002,22 @@ function DiagnosticsBlock({ activePrototype, isLoaded, data }: DiagnosticsBlockP
   );
 }
 
+type InfoTooltipProps = {
+  text: string;
+  label?: string;
+};
+
+function InfoTooltip({ text, label = "Пояснение" }: InfoTooltipProps) {
+  return (
+    <span className="info-tooltip">
+      <button type="button" aria-label={label}>
+        i
+      </button>
+      <span role="tooltip">{text}</span>
+    </span>
+  );
+}
+
 type CurrentMvpProps = {
   dashboardData: DashboardData;
   uploadedFileName: string;
@@ -1837,7 +1873,10 @@ function CurrentMvp({
 
       <section className={`data-quality-strip ${dataQualityTone}`} aria-label="Качество данных">
         <div>
-          <strong>{dataQualityTitle}</strong>
+          <span className="heading-with-info">
+            <strong>{dataQualityTitle}</strong>
+            <InfoTooltip text={INFO_TEXTS.quality} />
+          </span>
           <span>{dataQualitySubtitle}</span>
         </div>
         {reviewIssues.length > 0 && (
@@ -1852,7 +1891,10 @@ function CurrentMvp({
       <section className="filters-card section-card" aria-label="Фильтры дашборда">
         <div className="section-heading compact">
           <div>
-            <h2>Фильтры</h2>
+            <div className="heading-with-info">
+              <h2>Фильтры</h2>
+              <InfoTooltip text={INFO_TEXTS.filters} />
+            </div>
             <span>Срез данных для всех блоков</span>
           </div>
           <button className="secondary-button" type="button" onClick={resetFilters}>
@@ -2037,6 +2079,11 @@ function CurrentMvp({
         </div>
       </section>
 
+      <div className="kpi-context-row">
+        <span>Ключевые показатели</span>
+        <InfoTooltip text={INFO_TEXTS.kpi} />
+      </div>
+
       <section className="kpi-grid" aria-label="Главные показатели">
         {topKpis.map((metric) => (
           <article className={`kpi-card ${metric.tone}`} key={metric.label}>
@@ -2059,7 +2106,10 @@ function CurrentMvp({
           <article className="section-card funnel-card">
             <div className="section-heading with-controls funnel-heading">
               <div>
-                <h2>Воронка подбора</h2>
+                <div className="heading-with-info">
+                  <h2>Воронка подбора</h2>
+                  <InfoTooltip text={INFO_TEXTS.funnel} />
+                </div>
                 <span>Этапы Huntflow сгруппированы в управленческие блоки</span>
               </div>
 
@@ -2101,21 +2151,24 @@ function CurrentMvp({
 
               <div className="funnel-toolbar-controls">
                 {funnelScope === "stages" && (
-                  <div className="segmented-control compact" aria-label="Логика расчета воронки по этапам">
-                    <button
-                      type="button"
-                      className={funnelStageMode === "fromNew" ? "active" : ""}
-                      onClick={() => setFunnelStageMode("fromNew")}
-                    >
-                      От новых
-                    </button>
-                    <button
-                      type="button"
-                      className={funnelStageMode === "step" ? "active" : ""}
-                      onClick={() => setFunnelStageMode("step")}
-                    >
-                      Из этапа в этап
-                    </button>
+                  <div className="segmented-with-info">
+                    <div className="segmented-control compact" aria-label="Логика расчета воронки по этапам">
+                      <button
+                        type="button"
+                        className={funnelStageMode === "fromNew" ? "active" : ""}
+                        onClick={() => setFunnelStageMode("fromNew")}
+                      >
+                        От новых
+                      </button>
+                      <button
+                        type="button"
+                        className={funnelStageMode === "step" ? "active" : ""}
+                        onClick={() => setFunnelStageMode("step")}
+                      >
+                        Из этапа в этап
+                      </button>
+                    </div>
+                    <InfoTooltip text={INFO_TEXTS.funnelMode} />
                   </div>
                 )}
 
@@ -2169,10 +2222,22 @@ function CurrentMvp({
                       >
                         <td className="primary-cell">
                           {funnelStageMode === "fromNew" ? (
-                            item.stage
+                            item.stage === "Тестирование" ? (
+                              <span className="inline-info-label">
+                                {item.stage}
+                                <InfoTooltip text={INFO_TEXTS.testing} label="Пояснение про тестирование" />
+                              </span>
+                            ) : (
+                              item.stage
+                            )
                           ) : (
                             <span className="transition-cell">
-                              <strong>{item.transition}</strong>
+                              <strong>
+                                {item.transition}
+                                {item.isOptional && (
+                                  <InfoTooltip text={INFO_TEXTS.testing} label="Пояснение про тестирование" />
+                                )}
+                              </strong>
                               {item.previousStage && <small>из: {item.previousStage}</small>}
                             </span>
                           )}
@@ -2200,7 +2265,12 @@ function CurrentMvp({
                     <div className="legend-row" key={item.stage}>
                       <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
                       <div>
-                        <span>{item.stage}</span>
+                        <span className={item.stage === "Тестирование" ? "inline-info-label" : undefined}>
+                          {item.stage}
+                          {item.stage === "Тестирование" && (
+                            <InfoTooltip text={INFO_TEXTS.testing} label="Пояснение про тестирование" />
+                          )}
+                        </span>
                         <strong>{item.conversion}</strong>
                       </div>
                     </div>
@@ -2212,7 +2282,12 @@ function CurrentMvp({
                 {funnelStepRows.map((item) => (
                   <div className={`funnel-step-row ${item.isOptional ? "funnel-step-row-secondary" : ""}`} key={item.transition}>
                     <div className="funnel-step-label">
-                      <strong>{item.transition}</strong>
+                      <strong>
+                        {item.transition}
+                        {item.isOptional && (
+                          <InfoTooltip text={INFO_TEXTS.testing} label="Пояснение про тестирование" />
+                        )}
+                      </strong>
                       <span>
                         {item.count} кандидатов · {item.conversion}
                       </span>
@@ -2321,7 +2396,10 @@ function CurrentMvp({
           <article className="section-card sla-card">
             <div className="section-heading">
               <div>
-                <h2>Сроки и SLA</h2>
+                <div className="heading-with-info">
+                  <h2>Сроки и SLA</h2>
+                  <InfoTooltip text={INFO_TEXTS.sla} />
+                </div>
                 <span>По выбранным фильтрам</span>
               </div>
             </div>
@@ -2605,9 +2683,12 @@ function CurrentMvp({
       <section className="section-card table-card recruiter-card">
         <div className="section-heading">
           <div>
-            <h2>Нагрузка рекрутеров</h2>
+            <div className="heading-with-info">
+              <h2>Сводка по рекрутерам</h2>
+              <InfoTooltip text={INFO_TEXTS.recruiters} />
+            </div>
             <span>
-              По текущему срезу вакансий · HH-поля справочно ·{" "}
+              По текущему срезу вакансий: активные, закрытые, этапы Huntflow и показатели HeadHunter ·{" "}
               {showAllRecruiters ? `показаны все: ${recruiterWorkload.length}` : `показано ${displayedRecruiterWorkload.length} из ${recruiterWorkload.length}`}
             </span>
           </div>
@@ -2680,7 +2761,7 @@ function CurrentMvp({
           </table>
         </div>
 
-        {recruiterWorkload.length === 0 && <p className="empty-state">Загрузите Excel, чтобы увидеть нагрузку рекрутеров.</p>}
+        {recruiterWorkload.length === 0 && <p className="empty-state">Загрузите Excel, чтобы увидеть сводку по рекрутерам.</p>}
 
         {recruiterWorkload.some((recruiter) => recruiter.hfOfferAccepted > recruiter.hfJobOffer) && (
           <p className="table-footnote">* Есть расхождение этапов: принятых офферов больше, чем выставленных.</p>
@@ -2774,7 +2855,10 @@ function CurrentMvp({
         <article className="section-card sources-card">
           <div className="section-heading with-controls">
             <div>
-              <h2>Источники кандидатов</h2>
+              <div className="heading-with-info">
+                <h2>Источники кандидатов</h2>
+                <InfoTooltip text={INFO_TEXTS.sources} />
+              </div>
               <span>По выбранному рекрутеру / департаменту / отделу</span>
             </div>
 
