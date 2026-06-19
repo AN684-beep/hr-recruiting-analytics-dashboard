@@ -36,7 +36,6 @@ const MANAGEMENT_FUNNEL_GROUPS = [
   "Рекрутер",
   "Нанимающий менеджер",
   "Команда",
-  "Финал",
   "Тестирование",
   "Оффер выставлен",
   "Оффер принят"
@@ -1491,7 +1490,6 @@ function CurrentMvp({
       primaryInterviews: number;
       hmInterviews: number;
       team: number;
-      final: number;
       testing: number;
       jobOffers: number;
       acceptedOffers: number;
@@ -1507,7 +1505,6 @@ function CurrentMvp({
       primaryInterviews: 0,
       hmInterviews: 0,
       team: 0,
-      final: 0,
       testing: 0,
       jobOffers: 0,
       acceptedOffers: 0
@@ -1518,7 +1515,6 @@ function CurrentMvp({
     if (row.groupName === "Рекрутер") current.primaryInterviews += row.count;
     if (row.groupName === "Нанимающий менеджер") current.hmInterviews += row.count;
     if (row.groupName === "Команда") current.team += row.count;
-    if (row.groupName === "Финал") current.final += row.count;
     if (row.groupName === "Тестирование") current.testing += row.count;
     if (row.groupName === "Оффер выставлен") current.jobOffers += row.count;
     if (row.groupName === "Оффер принят") current.acceptedOffers += row.count;
@@ -1533,7 +1529,6 @@ function CurrentMvp({
         recruiter.primaryInterviews > 0 ||
         recruiter.hmInterviews > 0 ||
         recruiter.team > 0 ||
-        recruiter.final > 0 ||
         recruiter.testing > 0 ||
         recruiter.jobOffers > 0 ||
         recruiter.acceptedOffers > 0
@@ -1549,7 +1544,6 @@ function CurrentMvp({
       { stage: "Рекрутер", count: selectedRecruiterFunnel.primaryInterviews },
       { stage: "Нанимающий менеджер", count: selectedRecruiterFunnel.hmInterviews },
       { stage: "Команда", count: selectedRecruiterFunnel.team },
-      { stage: "Финал", count: selectedRecruiterFunnel.final },
       { stage: "Тестирование", count: selectedRecruiterFunnel.testing },
       { stage: "Оффер выставлен", count: selectedRecruiterFunnel.jobOffers },
       { stage: "Оффер принят", count: selectedRecruiterFunnel.acceptedOffers }
@@ -1566,7 +1560,6 @@ function CurrentMvp({
       row.primaryInterviews,
       row.hmInterviews,
       row.team,
-      row.final,
       row.testing,
       row.jobOffers,
       row.acceptedOffers
@@ -2163,9 +2156,7 @@ function CurrentMvp({
                       <tr key={funnelStageMode === "fromNew" ? item.stage : item.transition}>
                         <td className="primary-cell">
                           {funnelStageMode === "fromNew" ? (
-                            <span title={item.stage === "Тестирование" ? "Тестирование есть не во всех маршрутах: в бизнес-вакансиях применяется часто, в IT обычно отсутствует." : undefined}>
-                              {item.stage}
-                            </span>
+                            item.stage
                           ) : (
                             <span className="transition-cell">
                               <strong>{item.transition}</strong>
@@ -2182,10 +2173,6 @@ function CurrentMvp({
                 {funnelStageMode === "step" && hasStepConversionWarning && (
                   <p className="table-footnote">Часть переходов выше 100%: это возможно в агрегированных данных Huntflow.</p>
                 )}
-                <p className="table-footnote">
-                  Воронка построена по агрегированным данным Huntflow. Для групп “Команда” и “Финал” внутри вакансии
-                  используется максимальное значение среди соответствующих этапов, чтобы снизить риск задвоения кандидатов.
-                </p>
               </div>
             ) : funnelScope === "stages" && funnelStageMode === "fromNew" ? (
               <div className="donut-panel">
@@ -2203,17 +2190,11 @@ function CurrentMvp({
                     <div className="legend-row" key={item.stage}>
                       <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
                       <div>
-                        <span title={item.stage === "Тестирование" ? "Тестирование есть не во всех маршрутах: в бизнес-вакансиях применяется часто, в IT обычно отсутствует." : undefined}>
-                          {item.stage}
-                        </span>
+                        <span>{item.stage}</span>
                         <strong>{item.conversion}</strong>
                       </div>
                     </div>
                   ))}
-                  <p className="metric-explain">
-                    Воронка построена по агрегированным данным Huntflow. Для групп “Команда” и “Финал” внутри вакансии
-                    используется максимальное значение среди соответствующих этапов.
-                  </p>
                 </div>
               </div>
             ) : funnelScope === "stages" ? (
@@ -2237,10 +2218,6 @@ function CurrentMvp({
                 {hasStepConversionWarning && (
                   <p className="metric-explain warning-text">Часть переходов выше 100%: это возможно в агрегированных данных Huntflow.</p>
                 )}
-                <p className="metric-explain">
-                  Воронка построена по агрегированным данным Huntflow. Для групп “Команда” и “Финал” внутри вакансии
-                  используется максимальное значение среди соответствующих этапов, чтобы снизить риск задвоения кандидатов.
-                </p>
               </div>
             ) : !hasManagementFunnelData ? (
               <p className="empty-state">
@@ -2259,7 +2236,6 @@ function CurrentMvp({
                       <th>Рекрутер</th>
                       <th>НМ</th>
                       <th>Команда</th>
-                      <th>Финал</th>
                       <th>Тестирование</th>
                       <th>Оффер выставлен</th>
                       <th>Оффер принят</th>
@@ -2276,7 +2252,6 @@ function CurrentMvp({
                         <td>{recruiter.primaryInterviews}</td>
                         <td>{recruiter.hmInterviews}</td>
                         <td>{recruiter.team}</td>
-                        <td>{recruiter.final}</td>
                         <td>{recruiter.testing}</td>
                         <td>{recruiter.jobOffers}</td>
                         <td>{recruiter.acceptedOffers}</td>
