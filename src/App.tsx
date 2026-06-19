@@ -1009,7 +1009,7 @@ function CurrentMvp({
     setShowAllTimingRows(false);
   };
 
-  const applyPeriodPreset = (preset: "all" | "currentMonth" | "previousMonth" | "last30Days") => {
+  const applyPeriodPreset = (preset: "all" | "currentDay" | "currentWeek" | "currentMonth" | "currentYear" | "last30Days") => {
     const today = new Date();
 
     if (preset === "all") {
@@ -1017,18 +1017,30 @@ function CurrentMvp({
       return;
     }
 
-    if (preset === "currentMonth") {
-      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)));
-      setPeriodTo(toDateInputValue(new Date(today.getFullYear(), today.getMonth() + 1, 0)));
+    if (preset === "currentDay") {
+      const todayValue = toDateInputValue(today);
+      setPeriodFrom(todayValue);
+      setPeriodTo(todayValue);
     }
 
-    if (preset === "previousMonth") {
-      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth() - 1, 1)));
-      setPeriodTo(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 0)));
+    if (preset === "currentWeek") {
+      const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
+      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOfWeek + 1)));
+      setPeriodTo(toDateInputValue(today));
+    }
+
+    if (preset === "currentMonth") {
+      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)));
+      setPeriodTo(toDateInputValue(today));
+    }
+
+    if (preset === "currentYear") {
+      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), 0, 1)));
+      setPeriodTo(toDateInputValue(today));
     }
 
     if (preset === "last30Days") {
-      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29)));
+      setPeriodFrom(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30)));
       setPeriodTo(toDateInputValue(today));
     }
 
@@ -1038,23 +1050,34 @@ function CurrentMvp({
   };
 
   const today = new Date();
-  const currentMonthRange = {
-    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)),
-    to: toDateInputValue(new Date(today.getFullYear(), today.getMonth() + 1, 0))
-  };
-  const previousMonthRange = {
-    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
-    to: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 0))
-  };
-  const last30DaysRange = {
-    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29)),
+  const currentDayRange = {
+    from: toDateInputValue(today),
     to: toDateInputValue(today)
   };
-  const periodPresetClass = (preset: "all" | "currentMonth" | "previousMonth" | "last30Days") => {
+  const currentWeekDay = today.getDay() === 0 ? 7 : today.getDay();
+  const currentWeekRange = {
+    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - currentWeekDay + 1)),
+    to: toDateInputValue(today)
+  };
+  const currentMonthRange = {
+    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)),
+    to: toDateInputValue(today)
+  };
+  const currentYearRange = {
+    from: toDateInputValue(new Date(today.getFullYear(), 0, 1)),
+    to: toDateInputValue(today)
+  };
+  const last30DaysRange = {
+    from: toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30)),
+    to: toDateInputValue(today)
+  };
+  const periodPresetClass = (preset: "all" | "currentDay" | "currentWeek" | "currentMonth" | "currentYear" | "last30Days") => {
     const isActive =
       (preset === "all" && periodFrom === "" && periodTo === "") ||
+      (preset === "currentDay" && periodFrom === currentDayRange.from && periodTo === currentDayRange.to) ||
+      (preset === "currentWeek" && periodFrom === currentWeekRange.from && periodTo === currentWeekRange.to) ||
       (preset === "currentMonth" && periodFrom === currentMonthRange.from && periodTo === currentMonthRange.to) ||
-      (preset === "previousMonth" && periodFrom === previousMonthRange.from && periodTo === previousMonthRange.to) ||
+      (preset === "currentYear" && periodFrom === currentYearRange.from && periodTo === currentYearRange.to) ||
       (preset === "last30Days" && periodFrom === last30DaysRange.from && periodTo === last30DaysRange.to);
 
     return isActive ? "active" : "";
@@ -1110,7 +1133,7 @@ function CurrentMvp({
   };
 
   const filterVacanciesForOptions = (skippedFilter: "department" | "team" | "recruiter" | "vacancy") =>
-    vacancies.filter((vacancy) => vacancyMatchesFilters(vacancy, skippedFilter));
+    vacancies.filter((vacancy) => vacancyMatchesFilters(vacancy, skippedFilter) && vacancyMatchesPeriod(vacancy));
 
   const filterVacanciesByCurrentSelection = () =>
     vacancies.filter((vacancy) => {
@@ -1119,7 +1142,7 @@ function CurrentMvp({
 
   const departmentOptions = useMemo(
     () => uniqueNormalizedOptions(filterVacanciesForOptions("department").map((vacancy) => vacancy.department)),
-    [selectedTeam, selectedRecruiter, selectedVacancyId, vacancies]
+    [selectedTeam, selectedRecruiter, selectedVacancyId, periodFrom, periodTo, periodMode, vacancies]
   );
 
   const availableTeams = useMemo(
@@ -1139,12 +1162,12 @@ function CurrentMvp({
         return first.name.localeCompare(second.name, "ru");
       });
     },
-    [selectedDepartment, selectedRecruiter, selectedVacancyId, vacancies]
+    [selectedDepartment, selectedRecruiter, selectedVacancyId, periodFrom, periodTo, periodMode, vacancies]
   );
 
   const recruiterOptions = useMemo(
     () => uniqueNormalizedOptions(filterVacanciesForOptions("recruiter").map((vacancy) => vacancy.recruiter)),
-    [selectedDepartment, selectedTeam, selectedVacancyId, vacancies]
+    [selectedDepartment, selectedTeam, selectedVacancyId, periodFrom, periodTo, periodMode, vacancies]
   );
 
   const vacancyOptions = useMemo(
@@ -1165,7 +1188,7 @@ function CurrentMvp({
           ])
         ).values()
       ).sort((first, second) => first.label.localeCompare(second.label, "ru")),
-    [selectedDepartment, selectedTeam, selectedRecruiter, vacancies]
+    [selectedDepartment, selectedTeam, selectedRecruiter, periodFrom, periodTo, periodMode, vacancies]
   );
 
   const selectedVacancy = vacancies.find((vacancy) => vacancy.sourceId === selectedVacancyId);
@@ -1577,23 +1600,69 @@ function CurrentMvp({
   });
   const visibleTimingRows = showAllTimingRows ? sortedTimingRows : sortedTimingRows.slice(0, 5);
 
-  const recruiterWorkload = recruiterWorkloadRows
-    .filter(
-      (recruiter) =>
-        selectedRecruiter === DEFAULT_RECRUITER ||
-        recruiter.name === selectedRecruiter ||
-        recruiter.canonical === selectedRecruiter
-    )
-    .filter((recruiter) => showInactiveRecruiters || isActiveRecruiter(recruiter.name))
-    .filter((recruiter) => {
-      if (!isVacancyScoped) {
-        return true;
-      }
+  const recruiterWorkloadBaseByKey = new Map<string, RecruiterWorkloadItem>();
+  recruiterWorkloadRows.forEach((recruiter) => {
+    const key = normalizeRecruiterKey(recruiter.name || recruiter.canonical);
 
-      return funnelFilteredVacancies.some(
-        (vacancy) => vacancy.recruiter === recruiter.name || vacancy.recruiter === recruiter.canonical
-      );
-    });
+    if (key) {
+      recruiterWorkloadBaseByKey.set(key, recruiter);
+    }
+  });
+
+  const recruiterWorkloadByKey = new Map<string, RecruiterWorkloadItem>();
+  filteredVacancies.forEach((vacancy) => {
+    const key = normalizeRecruiterKey(vacancy.recruiter || "Не указано") || "не указано";
+    const base = recruiterWorkloadBaseByKey.get(key);
+    const current = recruiterWorkloadByKey.get(key) || {
+      name: vacancy.recruiter || base?.name || "Не указано",
+      canonical: base?.canonical || vacancy.recruiter,
+      activeVacancies: 0,
+      pausedVacancies: 0,
+      frozenVacancies: 0,
+      waitingStartVacancies: 0,
+      closedVacancies: 0,
+      allVacancies: 0,
+      hfNew: 0,
+      hfMessages: 0,
+      hfRecruiterInterview: 0,
+      hfRecruiterInterviewOrTechScreening: 0,
+      hfHiringManagerInterview: 0,
+      hfFinalInterview: 0,
+      hfJobOffer: 0,
+      hfOfferAccepted: 0,
+      hfRejected: 0,
+      hhResponses: base?.hhResponses || 0,
+      hhInvitationsFromResponses: base?.hhInvitationsFromResponses || 0,
+      hhPublicationCost: base?.hhPublicationCost || 0,
+      hhResponseCost: base?.hhResponseCost || 0
+    };
+
+    current.allVacancies += 1;
+    current.activeVacancies += vacancy.status === "active" ? 1 : 0;
+    current.pausedVacancies += vacancy.status === "paused" ? 1 : 0;
+    current.frozenVacancies += vacancy.status === "frozen" ? 1 : 0;
+    current.waitingStartVacancies += vacancy.status === "waiting_start" ? 1 : 0;
+    current.closedVacancies += vacancy.status === "closed" ? 1 : 0;
+    current.hfNew += vacancy.funnelStages["Новые"] || 0;
+    current.hfMessages += vacancy.funnelStages["Отправлено письмо/сообщение"] || 0;
+    current.hfRecruiterInterview += vacancy.funnelStages["Интервью с рекрутером"] || 0;
+    current.hfHiringManagerInterview += vacancy.funnelStages["Собеседование с нанимающим менеджером"] || 0;
+    current.hfFinalInterview += vacancy.funnelStages["Финальное интервью"] || 0;
+    current.hfJobOffer += vacancy.funnelStages["Job offer"] || 0;
+    current.hfOfferAccepted += vacancy.funnelStages["Оффер принят"] || 0;
+    current.hfRejected += vacancy.funnelStages["Отказ"] || 0;
+    recruiterWorkloadByKey.set(key, current);
+  });
+
+  const recruiterWorkload = Array.from(recruiterWorkloadByKey.values())
+    .filter((recruiter) => {
+      const isSelectedRecruiter =
+        selectedRecruiter !== DEFAULT_RECRUITER &&
+        (recruiter.name === selectedRecruiter || recruiter.canonical === selectedRecruiter);
+
+      return showInactiveRecruiters || isActiveRecruiter(recruiter.name) || isSelectedRecruiter;
+    })
+    .sort((first, second) => second.activeVacancies - first.activeVacancies || second.hfNew - first.hfNew);
 
   const displayedRecruiterWorkload = showAllRecruiters ? recruiterWorkload : recruiterWorkload.slice(0, 5);
   const departmentStatsByKey = new Map<
@@ -1823,6 +1892,20 @@ function CurrentMvp({
               Весь период
             </button>
             <button
+              className={periodPresetClass("currentDay")}
+              type="button"
+              onClick={() => applyPeriodPreset("currentDay")}
+            >
+              Этот день
+            </button>
+            <button
+              className={periodPresetClass("currentWeek")}
+              type="button"
+              onClick={() => applyPeriodPreset("currentWeek")}
+            >
+              Эта неделя
+            </button>
+            <button
               className={periodPresetClass("currentMonth")}
               type="button"
               onClick={() => applyPeriodPreset("currentMonth")}
@@ -1830,11 +1913,11 @@ function CurrentMvp({
               Этот месяц
             </button>
             <button
-              className={periodPresetClass("previousMonth")}
+              className={periodPresetClass("currentYear")}
               type="button"
-              onClick={() => applyPeriodPreset("previousMonth")}
+              onClick={() => applyPeriodPreset("currentYear")}
             >
-              Прошлый месяц
+              Этот год
             </button>
             <button
               className={periodPresetClass("last30Days")}
@@ -2409,7 +2492,7 @@ function CurrentMvp({
           <div>
             <h2>Нагрузка рекрутеров</h2>
             <span>
-              По полной воронке Huntflow за период ·{" "}
+              По текущему срезу вакансий · HH-поля справочно ·{" "}
               {showAllRecruiters ? `показаны все: ${recruiterWorkload.length}` : `показано ${displayedRecruiterWorkload.length} из ${recruiterWorkload.length}`}
             </span>
           </div>
