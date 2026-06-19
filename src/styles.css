@@ -799,22 +799,25 @@ p {
   line-height: 1.3;
 }
 
-.transition-cell b {
-  border-radius: 999px;
-  background: #eef2f7;
-  color: #64748b;
-  padding: 3px 7px;
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
-  white-space: nowrap;
-}
-
 .transition-cell small {
   color: #748196;
   font-size: 11px;
   font-weight: 700;
   line-height: 1.25;
+}
+
+.funnel-row-secondary {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.funnel-row-secondary .primary-cell {
+  border-left: 3px solid #cbd5e1;
+}
+
+.funnel-row-secondary .transition-cell strong,
+.funnel-row-secondary .transition-cell small,
+.funnel-row-secondary td {
+  color: #64748b;
 }
 
 .funnel-step-chart {
@@ -825,6 +828,18 @@ p {
 .funnel-step-row {
   display: grid;
   gap: 8px;
+}
+
+.funnel-step-row-secondary {
+  border-left: 3px solid #cbd5e1;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.08);
+  padding: 10px 12px;
+}
+
+.funnel-step-row-secondary .funnel-step-label strong,
+.funnel-step-row-secondary .funnel-step-label span {
+  color: #64748b;
 }
 
 .funnel-step-label {
