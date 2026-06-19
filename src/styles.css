@@ -231,12 +231,22 @@ p {
 .segmented-with-info {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 9px;
   min-width: 0;
 }
 
 .inline-info-label {
   max-width: 100%;
+  white-space: nowrap;
+}
+
+.primary-cell span.inline-info-label,
+.legend-row span.inline-info-label,
+.transition-cell strong span.inline-info-label,
+.funnel-step-label strong span.inline-info-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   white-space: nowrap;
 }
 
@@ -1903,6 +1913,16 @@ tbody tr.selected-row td {
   height: 14px;
   margin: 0;
   accent-color: var(--color-blue);
+}
+
+.dashboard-footer {
+  margin-top: 24px;
+  padding: 16px 0 24px;
+  color: rgba(71, 85, 105, 0.58);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
 }
 
 @media (max-width: 1120px) {
