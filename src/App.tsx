@@ -1944,7 +1944,7 @@ function CurrentMvp({
             <span>Срез данных для всех блоков</span>
           </div>
           <button className="secondary-button" type="button" onClick={resetFilters}>
-            Сбросить
+            Сбросить фильтры
           </button>
         </div>
 
@@ -2081,7 +2081,7 @@ function CurrentMvp({
             </label>
 
             <button className="secondary-button" type="button" onClick={resetPeriod}>
-              Сбросить фильтры периода
+              Сбросить период
             </button>
           </div>
 
@@ -2994,6 +2994,8 @@ function CurrentMvp({
           )}
         </article>
       </section>
+
+      <footer className="dashboard-footer">Создатель: Алла Никишина</footer>
     </main>
   );
 }
