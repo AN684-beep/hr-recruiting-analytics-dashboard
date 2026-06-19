@@ -2163,16 +2163,16 @@ function CurrentMvp({
                   </thead>
                   <tbody>
                     {funnel.map((item) => (
-                      <tr key={funnelStageMode === "fromNew" ? item.stage : item.transition}>
+                      <tr
+                        className={funnelStageMode === "step" && item.isOptional ? "funnel-row-secondary" : ""}
+                        key={funnelStageMode === "fromNew" ? item.stage : item.transition}
+                      >
                         <td className="primary-cell">
                           {funnelStageMode === "fromNew" ? (
                             item.stage
                           ) : (
                             <span className="transition-cell">
-                              <strong>
-                                {item.transition}
-                                {item.isOptional && <b>доп. этап</b>}
-                              </strong>
+                              <strong>{item.transition}</strong>
                               {item.previousStage && <small>из: {item.previousStage}</small>}
                             </span>
                           )}
@@ -2210,7 +2210,7 @@ function CurrentMvp({
             ) : funnelScope === "stages" ? (
               <div className="funnel-step-chart">
                 {funnelStepRows.map((item) => (
-                  <div className="funnel-step-row" key={item.transition}>
+                  <div className={`funnel-step-row ${item.isOptional ? "funnel-step-row-secondary" : ""}`} key={item.transition}>
                     <div className="funnel-step-label">
                       <strong>{item.transition}</strong>
                       <span>
