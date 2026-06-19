@@ -162,7 +162,6 @@ p {
 }
 
 .info-tooltip {
-  position: relative;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -194,12 +193,9 @@ p {
   outline: none;
 }
 
-.info-tooltip > span[role="tooltip"] {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
-  width: min(290px, calc(100vw - 32px));
+.info-tooltip-floating {
+  position: fixed;
+  z-index: 10000;
   border: 1px solid #dbe3ee;
   border-radius: 12px;
   background: #ffffff;
@@ -210,18 +206,13 @@ p {
   line-height: 1.45;
   padding: 10px 12px;
   text-align: left;
-  opacity: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
   pointer-events: none;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
 }
 
-.info-tooltip:hover > span[role="tooltip"],
-.info-tooltip:focus-within > span[role="tooltip"] {
-  opacity: 1;
-  transform: translateY(0);
+.info-tooltip-floating.top {
+  transform: translateY(-100%);
 }
 
 .data-quality-strip .heading-with-info,
@@ -236,23 +227,17 @@ p {
   margin-top: 0;
 }
 
-.data-quality-strip .info-tooltip > span[role="tooltip"],
-.section-heading .info-tooltip > span[role="tooltip"],
-.period-heading .info-tooltip > span[role="tooltip"],
-.funnel-subtoolbar .info-tooltip > span[role="tooltip"],
-.legend-row .info-tooltip > span[role="tooltip"],
-.transition-cell .info-tooltip > span[role="tooltip"],
-.funnel-step-label .info-tooltip > span[role="tooltip"] {
-  display: block;
-  margin-top: 0;
-}
-
 .inline-info-label,
 .segmented-with-info {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+
+.inline-info-label {
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .segmented-with-info {
@@ -972,6 +957,9 @@ p {
 }
 
 .funnel-step-label strong {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
   color: #172033;
   font-size: 13px;
   font-weight: 900;
@@ -1949,11 +1937,6 @@ tbody tr.selected-row td {
 
   .dashboard-header h1 {
     font-size: 34px;
-  }
-
-  .info-tooltip > span[role="tooltip"] {
-    right: auto;
-    left: 0;
   }
 
   .description {
