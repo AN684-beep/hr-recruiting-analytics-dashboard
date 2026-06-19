@@ -240,6 +240,10 @@ p {
   white-space: nowrap;
 }
 
+.inline-info-label .info-tooltip {
+  flex: 0 0 auto;
+}
+
 .segmented-with-info {
   flex-shrink: 0;
 }
@@ -1773,6 +1777,13 @@ tbody tr.selected-row td {
   align-self: stretch;
 }
 
+.analytics-lower-grid .empty-state {
+  align-content: start;
+  justify-content: start;
+  padding: 24px;
+  color: #66758a;
+}
+
 .analytics-lower-grid .table-wrap {
   overflow-y: auto;
   overflow-x: auto;
@@ -1863,8 +1874,6 @@ tbody tr.selected-row td {
 }
 
 .sources-empty {
-  min-height: 170px;
-  align-content: center;
   border: 1px dashed #cbd5e1;
   background:
     linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(239, 246, 255, 0.86));
