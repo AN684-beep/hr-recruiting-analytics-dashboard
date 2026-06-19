@@ -1460,8 +1460,19 @@ function CurrentMvp({
     conversionValue: funnelBaseCount > 0 ? (item.count / funnelBaseCount) * 100 : 0,
     previousStage: ""
   }));
-  const funnelStepRows = visibleFunnelStageCounts.map((item, index, stages) => {
-    const previousStage = stages[index - 1];
+  const funnelStepBaseByGroup: Record<string, string> = {
+    Контакт: "Новые",
+    Рекрутер: "Контакт",
+    "Нанимающий менеджер": "Рекрутер",
+    Команда: "Нанимающий менеджер",
+    Тестирование: "Команда",
+    "Оффер выставлен": "Команда",
+    "Оффер принят": "Оффер выставлен"
+  };
+  const visibleFunnelStageCountsByName = new Map(visibleFunnelStageCounts.map((item) => [item.stage, item]));
+  const funnelStepRows = visibleFunnelStageCounts.map((item, index) => {
+    const previousStageName = funnelStepBaseByGroup[item.stage];
+    const previousStage = previousStageName ? visibleFunnelStageCountsByName.get(previousStageName) : undefined;
     const conversionValue =
       index === 0 ? 100 : previousStage && previousStage.count > 0 ? (item.count / previousStage.count) * 100 : 0;
 
@@ -1470,12 +1481,11 @@ function CurrentMvp({
       transition: index === 0 || !previousStage ? "Новые" : `${previousStage.stage} → ${item.stage}`,
       conversion: index === 0 ? (item.count > 0 ? "100%" : "—") : previousStage && previousStage.count > 0 ? `${conversionValue.toFixed(1)}%` : "—",
       conversionValue,
-      previousStage: previousStage?.stage || ""
+      previousStage: previousStage?.stage || "",
+      isOptional: item.stage === "Тестирование"
     };
   });
   const funnel = funnelStageMode === "fromNew" ? funnelFromNewRows : funnelStepRows;
-  const hasStepConversionWarning =
-    funnelStepRows.some((item) => item.previousStage && item.conversionValue > 100);
 
   const funnelDonutBackground = buildConicGradient(
     funnelFromNewRows.map((item) => item.count),
@@ -2159,7 +2169,10 @@ function CurrentMvp({
                             item.stage
                           ) : (
                             <span className="transition-cell">
-                              <strong>{item.transition}</strong>
+                              <strong>
+                                {item.transition}
+                                {item.isOptional && <b>доп. этап</b>}
+                              </strong>
                               {item.previousStage && <small>из: {item.previousStage}</small>}
                             </span>
                           )}
@@ -2170,9 +2183,6 @@ function CurrentMvp({
                     ))}
                   </tbody>
                 </table>
-                {funnelStageMode === "step" && hasStepConversionWarning && (
-                  <p className="table-footnote">Часть переходов выше 100%: это возможно в агрегированных данных Huntflow.</p>
-                )}
               </div>
             ) : funnelScope === "stages" && funnelStageMode === "fromNew" ? (
               <div className="donut-panel">
@@ -2215,9 +2225,6 @@ function CurrentMvp({
                     </div>
                   </div>
                 ))}
-                {hasStepConversionWarning && (
-                  <p className="metric-explain warning-text">Часть переходов выше 100%: это возможно в агрегированных данных Huntflow.</p>
-                )}
               </div>
             ) : !hasManagementFunnelData ? (
               <p className="empty-state">
