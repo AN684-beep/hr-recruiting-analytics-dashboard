@@ -464,13 +464,13 @@ p {
 
 .filters-grid select {
   width: 100%;
-  min-height: 38px;
+  min-height: 42px;
   border: 1px solid #d8e1ed;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #ffffff;
   color: #172033;
-  padding: 8px 34px 8px 10px;
-  font-size: 13px;
+  padding: 9px 36px 9px 12px;
+  font-size: 14px;
   outline: none;
 }
 
@@ -531,18 +531,18 @@ p {
 .period-grid input,
 .period-grid select {
   width: 100%;
-  min-height: 40px;
+  min-height: 42px;
   border: 1px solid #d8e1ed;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #ffffff;
   color: #172033;
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: 9px 12px;
+  font-size: 14px;
   outline: none;
 }
 
 .period-grid .secondary-button {
-  min-height: 40px;
+  min-height: 42px;
   white-space: nowrap;
 }
 
@@ -555,17 +555,17 @@ p {
 .period-presets {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 2px;
+  gap: 9px;
+  padding-top: 4px;
 }
 
 .period-presets button {
-  min-height: 34px;
+  min-height: 36px;
   border: 1px solid #d8e1ed;
   border-radius: 999px;
   background: #ffffff;
   color: #526174;
-  padding: 8px 12px;
+  padding: 8px 13px;
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
