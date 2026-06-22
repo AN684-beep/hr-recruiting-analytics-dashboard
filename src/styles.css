@@ -207,7 +207,7 @@ p {
   padding: 10px 12px;
   text-align: left;
   overflow-wrap: anywhere;
-  white-space: normal;
+  white-space: pre-line;
   pointer-events: none;
 }
 
