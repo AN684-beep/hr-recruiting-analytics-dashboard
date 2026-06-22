@@ -66,7 +66,7 @@ const TIMING_SORT_OPTIONS = [
   "Сначала новые",
   "Сначала старые"
 ];
-const TIMING_SLA_OPTIONS = [DEFAULT_TIMING_SLA, "В срок", "Просрочено", "Нет данных"];
+const TIMING_SLA_OPTIONS = [DEFAULT_TIMING_SLA, "В срок", "Не в срок", "Нет данных", "Не считается"];
 const PERIOD_MODE_OPTIONS = ["Были в работе", "Дате открытия", "Дате закрытия"];
 const ACTIVE_RECRUITERS = ["Алла", "Катя", "Маша", "Лена", "Настя"];
 const INFO_TEXTS = {
@@ -494,6 +494,17 @@ const isClosedStatus = (status: string) => status === "closed";
 
 const isActiveStatus = (status: string) => ["active", "unknown"].includes(status);
 
+const vacancyTargetDays = (vacancy: Vacancy) => asValidDays(vacancy.targetCloseDays);
+
+const vacancyClosedActualDays = (vacancy: Vacancy) => asValidDays(vacancy.actualCloseDays);
+
+const isClosedInTime = (vacancy: Vacancy) => {
+  const targetDays = vacancyTargetDays(vacancy);
+  const actualDays = vacancyClosedActualDays(vacancy);
+
+  return targetDays > 0 && actualDays > 0 && actualDays <= targetDays;
+};
+
 const statusLabel = (status: string) => {
   const labels: Record<string, string> = {
     active: "В работе",
@@ -843,7 +854,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       status = "closed";
     }
     const daysInWork = asValidDays(row.days_in_work_total);
-    const daysToClose = actualCloseDays || (status === "closed" ? daysInWork : 0);
+    const daysToClose = actualCloseDays;
     const slaDays = targetCloseDays;
     const riskInfo = getRiskInfo(row, status);
     const hfNew = asNumber(row.hf_new);
@@ -1370,10 +1381,8 @@ function CurrentMvp({
   const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
   const closedVacancies = filteredVacancies.filter((vacancy) => isClosedStatus(vacancy.status));
   const slaEligibleVacancies = filteredVacancies.filter((vacancy) => vacancy.status !== "frozen");
-  const slaClosedVacancies = slaEligibleVacancies.filter((vacancy) => isClosedStatus(vacancy.status));
-  const closedOnTime = slaClosedVacancies.filter(
-    (vacancy) => vacancy.slaDays > 0 && vacancy.daysToClose > 0 && vacancy.daysToClose <= vacancy.slaDays
-  );
+  const slaClosedVacancies = closedVacancies;
+  const closedOnTime = closedVacancies.filter(isClosedInTime);
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
   const currentRisk = riskyVacancies[safeRiskIndex];
@@ -1508,7 +1517,7 @@ function CurrentMvp({
     },
     {
       label: "Закрыто в срок",
-      value: percentOneDecimal(closedOnTime.length, slaClosedVacancies.length),
+      value: closedVacancies.length > 0 ? percentOneDecimal(closedOnTime.length, closedVacancies.length) : "—",
       hint: "По вакансиям выбранного среза",
       tone: "quality"
     },
@@ -1716,32 +1725,31 @@ function CurrentMvp({
   const slaSummary = [
     {
       label: "Средний целевой срок",
-      value: `${average(slaEligibleVacancies.map((vacancy) => vacancy.targetCloseDays))} дн.`
+      value: `${average(slaEligibleVacancies.map(vacancyTargetDays).filter((value) => value > 0))} дн.`
     },
     {
       label: "Средний фактический срок",
-      value: `${average(slaClosedVacancies.map((vacancy) => vacancy.actualCloseDays || vacancy.daysToClose))} дн.`
+      value: `${average(slaClosedVacancies.map(vacancyClosedActualDays).filter((value) => value > 0))} дн.`
     },
     {
       label: "% закрытых в срок",
-      value: percent(closedOnTime.length, slaClosedVacancies.length)
+      value: closedVacancies.length > 0 ? percentOneDecimal(closedOnTime.length, closedVacancies.length) : "—"
     }
   ];
 
   const timingRows = filteredVacancies.map((vacancy) => {
     const isFrozenVacancy = vacancy.status === "frozen";
-    const targetDays = asValidDays(vacancy.targetCloseDays || vacancy.slaDays);
-    const actualDays = asValidDays(
-      vacancy.status === "closed"
-        ? vacancy.actualCloseDays || vacancy.daysToClose
-        : vacancy.daysInWork || vacancy.daysToClose || vacancy.actualCloseDays
-    );
+    const isClosedVacancy = isClosedStatus(vacancy.status);
+    const targetDays = vacancyTargetDays(vacancy);
+    const actualDays = isClosedVacancy
+      ? vacancyClosedActualDays(vacancy)
+      : asValidDays(vacancy.daysInWork);
     const hasTimingData = !isFrozenVacancy && targetDays > 0 && actualDays > 0;
     const deviation = hasTimingData ? actualDays - targetDays : 0;
     const timingStatus = isFrozenVacancy
       ? "Не считается"
       : hasTimingData
-        ? (actualDays <= targetDays ? "В срок" : "Просрочено")
+        ? (actualDays <= targetDays ? "В срок" : "Не в срок")
         : "Нет данных";
 
     return {
@@ -1754,6 +1762,7 @@ function CurrentMvp({
       grade: vacancy.grade,
       targetDays,
       actualDays,
+      actualDaysLabel: isFrozenVacancy ? "Не считается" : actualDays > 0 ? `${actualDays} дн.` : "Нет данных",
       deviation,
       status: timingStatus,
       openDate: vacancy.openDate,
@@ -2081,7 +2090,7 @@ function CurrentMvp({
             </label>
 
             <button className="secondary-button" type="button" onClick={resetPeriod}>
-              Сбросить период
+              Сбросить фильтры периода
             </button>
           </div>
 
@@ -2554,9 +2563,9 @@ function CurrentMvp({
                       </td>
                       <td>{row.department}</td>
                       <td>{row.targetDays > 0 ? `${row.targetDays} дн.` : "Нет данных"}</td>
-                      <td>{row.actualDays > 0 ? `${row.actualDays} дн.` : "Нет данных"}</td>
+                      <td>{row.actualDaysLabel}</td>
                       <td>
-                        <span className={`timing-status ${row.status === "В срок" ? "on-time" : row.status === "Просрочено" ? "late" : "unknown"}`}>
+                        <span className={`timing-status ${row.status === "В срок" ? "on-time" : row.status === "Не в срок" ? "late" : "unknown"}`}>
                           {row.status}
                         </span>
                       </td>
