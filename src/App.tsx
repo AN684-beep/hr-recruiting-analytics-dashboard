@@ -95,11 +95,18 @@ const INFO_TEXTS = {
 type Vacancy = {
   id: number;
   sourceId: string;
+  total_vacancy_name: string;
   title: string;
   department: string;
   team: string;
   recruiter: string;
+  recruiter_canonical: string;
   grade: string;
+  vacancy_lifecycle_status: string;
+  source_status_total: string;
+  target_days_total: unknown;
+  actual_close_days_total: unknown;
+  days_in_work_total: unknown;
   targetCloseDays: number;
   actualCloseDays: number;
   gradeTargetDays: number;
@@ -290,6 +297,29 @@ const asNumber = (value: unknown) => {
   const parsed = Number(normalized);
 
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const toNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const normalized = String(value)
+    .trim()
+    .replace(/\u00a0/g, " ")
+    .replace(/\s/g, "")
+    .replace(",", ".");
+
+  if (!normalized || normalized.toLowerCase() === "нетданных") {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 const asBoolean = (value: unknown) => {
@@ -494,15 +524,31 @@ const isClosedStatus = (status: string) => status === "closed";
 
 const isActiveStatus = (status: string) => ["active", "unknown"].includes(status);
 
-const vacancyTargetDays = (vacancy: Vacancy) => asValidDays(vacancy.targetCloseDays);
+const vacancySlaStatus = (vacancy: Vacancy) => {
+  const lifecycleStatus = normalizeStatus(asText(vacancy.vacancy_lifecycle_status));
 
-const vacancyClosedActualDays = (vacancy: Vacancy) => asValidDays(vacancy.actualCloseDays);
+  if (lifecycleStatus !== "unknown") {
+    return lifecycleStatus;
+  }
+
+  return normalizeStatus(asText(vacancy.source_status_total));
+};
+
+const isClosedForSla = (vacancy: Vacancy) => vacancySlaStatus(vacancy) === "closed";
+
+const vacancyTargetDays = (vacancy: Vacancy) => toNumber(vacancy.target_days_total);
+
+const vacancyClosedActualDays = (vacancy: Vacancy) => toNumber(vacancy.actual_close_days_total);
+
+const vacancyDaysInWork = (vacancy: Vacancy) => toNumber(vacancy.days_in_work_total);
+
+const isPositiveNumber = (value: number | null): value is number => value !== null && value > 0;
 
 const isClosedInTime = (vacancy: Vacancy) => {
   const targetDays = vacancyTargetDays(vacancy);
   const actualDays = vacancyClosedActualDays(vacancy);
 
-  return targetDays > 0 && actualDays > 0 && actualDays <= targetDays;
+  return targetDays !== null && actualDays !== null && actualDays <= targetDays;
 };
 
 const statusLabel = (status: string) => {
@@ -870,11 +916,18 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     vacancies.push({
       id,
       sourceId,
+      total_vacancy_name: title,
       title,
       department,
       team,
       recruiter,
+      recruiter_canonical: normalizeText(row.recruiter_canonical),
       grade: normalizeUnknown(row.grade),
+      vacancy_lifecycle_status: lifecycleStatus,
+      source_status_total: asText(row.source_status_total),
+      target_days_total: row.target_days_total,
+      actual_close_days_total: row.actual_close_days_total,
+      days_in_work_total: row.days_in_work_total,
       targetCloseDays,
       actualCloseDays,
       gradeTargetDays: targetCloseDays,
@@ -1379,10 +1432,39 @@ function CurrentMvp({
     selectedVacancyId !== DEFAULT_VACANCY ||
     isPeriodActive;
   const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
-  const closedVacancies = filteredVacancies.filter((vacancy) => isClosedStatus(vacancy.status));
+  const closedVacancies = filteredVacancies.filter(isClosedForSla);
   const slaEligibleVacancies = filteredVacancies.filter((vacancy) => vacancy.status !== "frozen");
   const slaClosedVacancies = closedVacancies;
   const closedOnTime = closedVacancies.filter(isClosedInTime);
+  const closedInTimeCount = closedOnTime.length;
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.location.hostname !== "localhost") {
+      return;
+    }
+
+    console.log("SLA debug", {
+      filtered: filteredVacancies.length,
+      closed: closedVacancies.length,
+      closedInTime: closedInTimeCount,
+      sample: closedVacancies.slice(0, 10).map((vacancy) => {
+        const targetNum = toNumber(vacancy.target_days_total);
+        const actualNum = toNumber(vacancy.actual_close_days_total);
+
+        return {
+          name: vacancy.total_vacancy_name,
+          status: vacancy.vacancy_lifecycle_status,
+          recruiter: vacancy.recruiter_canonical,
+          target: vacancy.target_days_total,
+          actual: vacancy.actual_close_days_total,
+          targetNum,
+          actualNum,
+          inTime: targetNum !== null && actualNum !== null ? actualNum <= targetNum : false
+        };
+      })
+    });
+  }, [filteredVacancies, closedVacancies, closedInTimeCount]);
+
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
   const currentRisk = riskyVacancies[safeRiskIndex];
@@ -1517,7 +1599,7 @@ function CurrentMvp({
     },
     {
       label: "Закрыто в срок",
-      value: closedVacancies.length > 0 ? percentOneDecimal(closedOnTime.length, closedVacancies.length) : "—",
+      value: closedVacancies.length > 0 ? percentOneDecimal(closedInTimeCount, closedVacancies.length) : "—",
       hint: "По вакансиям выбранного среза",
       tone: "quality"
     },
@@ -1725,26 +1807,26 @@ function CurrentMvp({
   const slaSummary = [
     {
       label: "Средний целевой срок",
-      value: `${average(slaEligibleVacancies.map(vacancyTargetDays).filter((value) => value > 0))} дн.`
+      value: `${average(slaEligibleVacancies.map(vacancyTargetDays).filter(isPositiveNumber))} дн.`
     },
     {
       label: "Средний фактический срок",
-      value: `${average(slaClosedVacancies.map(vacancyClosedActualDays).filter((value) => value > 0))} дн.`
+      value: `${average(slaClosedVacancies.map(vacancyClosedActualDays).filter(isPositiveNumber))} дн.`
     },
     {
       label: "% закрытых в срок",
-      value: closedVacancies.length > 0 ? percentOneDecimal(closedOnTime.length, closedVacancies.length) : "—"
+      value: closedVacancies.length > 0 ? percentOneDecimal(closedInTimeCount, closedVacancies.length) : "—"
     }
   ];
 
   const timingRows = filteredVacancies.map((vacancy) => {
     const isFrozenVacancy = vacancy.status === "frozen";
-    const isClosedVacancy = isClosedStatus(vacancy.status);
+    const isClosedVacancy = isClosedForSla(vacancy);
     const targetDays = vacancyTargetDays(vacancy);
     const actualDays = isClosedVacancy
       ? vacancyClosedActualDays(vacancy)
-      : asValidDays(vacancy.daysInWork);
-    const hasTimingData = !isFrozenVacancy && targetDays > 0 && actualDays > 0;
+      : vacancyDaysInWork(vacancy);
+    const hasTimingData = !isFrozenVacancy && targetDays !== null && actualDays !== null;
     const deviation = hasTimingData ? actualDays - targetDays : 0;
     const timingStatus = isFrozenVacancy
       ? "Не считается"
@@ -1760,9 +1842,9 @@ function CurrentMvp({
       department: vacancy.department,
       team: vacancy.team,
       grade: vacancy.grade,
-      targetDays,
-      actualDays,
-      actualDaysLabel: isFrozenVacancy ? "Не считается" : actualDays > 0 ? `${actualDays} дн.` : "Нет данных",
+      targetDays: targetDays || 0,
+      actualDays: actualDays || 0,
+      actualDaysLabel: isFrozenVacancy ? "Не считается" : actualDays !== null ? `${actualDays} дн.` : "Нет данных",
       deviation,
       status: timingStatus,
       openDate: vacancy.openDate,
