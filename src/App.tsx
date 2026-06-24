@@ -79,7 +79,7 @@ const INFO_TEXTS = {
   kpi:
     "Показатели считаются по выбранным фильтрам. Офферы берутся из Huntflow: «Всего офферов» — Job offer, «Принято офферов» — «Оффер принят».",
   funnel:
-    "Воронка собрана из этапов Huntflow. Похожие этапы объединены, чтобы было проще смотреть общую картину по вакансиям и рекрутерам.",
+    "Группы воронки сначала считаются внутри каждой вакансии или строки отчета, а затем суммируются по выбранному набору: рекрутеру, вакансии, департаменту или всей команде.\n\nДля простых этапов берется значение одного этапа. Для групп, которые объединяют несколько похожих или последовательных этапов, используется специальная логика, чтобы не задваивать кандидатов.\n\nНапример, группа «Команда» объединяет кросс-функциональные интервью, HR BP, НМ+1, LT, HRD, CEO и финальное интервью. Внутри одной вакансии или строки берется максимальное значение среди этих этапов, а не сумма. Это нужно, чтобы один и тот же кандидат не считался несколько раз, если он проходил несколько финальных этапов.\n\nКогда выбран не один объект, а несколько вакансий, рекрутер или вся команда, итоговая воронка получается как сумма уже рассчитанных групп по выбранным данным.",
   funnelMode:
     "«От новых» показывает долю от всех новых кандидатов. «Из этапа в этап» показывает переход от одного этапа к следующему.",
   testing:
@@ -107,6 +107,7 @@ type Vacancy = {
   target_days_total: unknown;
   actual_close_days_total: unknown;
   days_in_work_total: unknown;
+  offer_accept_date_total: unknown;
   targetCloseDays: number;
   actualCloseDays: number;
   gradeTargetDays: number;
@@ -117,6 +118,7 @@ type Vacancy = {
   slaDays: number;
   openDate: number;
   closeDate: number;
+  offerAcceptDate: number;
   openDateDisplay: string;
   closeDateDisplay: string;
   funnelStages: Record<string, number>;
@@ -193,6 +195,15 @@ type FunnelGroupByVacancyItem = {
   count: number;
 };
 
+type FunnelGroupByRecruiterItem = {
+  recruiter: string;
+  recruiterCanonical: string;
+  groupOrder: number;
+  groupName: string;
+  count: number;
+  conversionFromNew: number;
+};
+
 type RecruiterWorkloadItem = {
   name: string;
   canonical: string;
@@ -233,7 +244,10 @@ type DashboardData = {
   offers: Offer[];
   funnelStages: string[];
   funnelGroupsByVacancy: FunnelGroupByVacancyItem[];
+  funnelGroupsByRecruiter: FunnelGroupByRecruiterItem[];
+  sourceDetails: SourceSummaryItem[];
   sourcesSummary: SourceSummaryItem[];
+  sourcesByRecruiterSummary: SourceSummaryItem[];
   sourcesByVacancy: SourceByVacancyItem[];
   dataQuality: DataQualityMetric[];
   recruiterWorkload: RecruiterWorkloadItem[];
@@ -252,7 +266,10 @@ const EMPTY_DASHBOARD_DATA: DashboardData = {
   offers: [],
   funnelStages: [],
   funnelGroupsByVacancy: [],
+  funnelGroupsByRecruiter: [],
+  sourceDetails: [],
   sourcesSummary: [],
+  sourcesByRecruiterSummary: [],
   sourcesByVacancy: [],
   dataQuality: [],
   recruiterWorkload: [],
@@ -786,6 +803,25 @@ const buildFunnelGroupsByVacancy = (rows: ExcelRow[]): FunnelGroupByVacancyItem[
     })
     .filter((item) => item.groupName && MANAGEMENT_FUNNEL_GROUPS.includes(item.groupName));
 
+const buildFunnelGroupsByRecruiter = (rows: ExcelRow[]): FunnelGroupByRecruiterItem[] =>
+  rows
+    .map((row) => {
+      const groupName = normalizeText(row.group_name);
+
+      return {
+        recruiter: pickRecruiterDisplayName(
+          normalizeText(row.recruiter_display_name),
+          normalizeText(row.recruiter_canonical)
+        ),
+        recruiterCanonical: normalizeText(row.recruiter_canonical),
+        groupOrder: asNumber(row.group_order) || MANAGEMENT_FUNNEL_GROUPS.indexOf(groupName) + 1 || 999,
+        groupName,
+        count: asNumber(row.group_count),
+        conversionFromNew: asNumber(row.conversion_from_new)
+      };
+    })
+    .filter((item) => item.groupName && MANAGEMENT_FUNNEL_GROUPS.includes(item.groupName));
+
 const valueFromQualityRows = (rows: ExcelRow[], metric: string) => {
   const found = rows.find((row) => asText(row.metric) === metric);
   return asNumber(found?.value);
@@ -850,11 +886,12 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
   const vacancyRows = readWorksheet(workbook, "vacancies");
   const recruiterRows = readWorksheet(workbook, "recruiters");
   const cvSourceRows = readWorksheet(workbook, "cv_sources");
+  const cvSourceSummaryRows = readWorksheet(workbook, "cv_sources_summary");
+  const cvSourceRecruiterSummaryRows = readWorksheet(workbook, "cv_sources_by_recruiter_summary");
   const funnelGroupRows = readWorksheet(workbook, "funnel_groups_by_vacancy");
+  const funnelGroupRecruiterRows = readWorksheet(workbook, "funnel_groups_by_recruiter");
   readWorksheet(workbook, "funnel_groups_summary");
-  readWorksheet(workbook, "funnel_groups_by_recruiter");
   readWorksheet(workbook, "funnel_stage_mapping_review");
-  readWorksheet(workbook, "cv_sources_summary");
   readWorksheet(workbook, "hf_vacancy_registry");
   readWorksheet(workbook, "total_hf_match_candidates");
   readWorksheet(workbook, "hf_matching_review");
@@ -928,6 +965,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       target_days_total: row.target_days_total,
       actual_close_days_total: row.actual_close_days_total,
       days_in_work_total: row.days_in_work_total,
+      offer_accept_date_total: row.offer_accept_date_total,
       targetCloseDays,
       actualCloseDays,
       gradeTargetDays: targetCloseDays,
@@ -938,6 +976,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       slaDays,
       openDate: dateTimestamp(row.open_date || row.open_date_total),
       closeDate: dateTimestamp(row.close_date || row.close_date_total || row.actual_close_date || row.hf_actual_close_date),
+      offerAcceptDate: dateTimestamp(row.offer_accept_date_total),
       openDateDisplay: asText(row.open_date_display),
       closeDateDisplay: asText(row.close_date_display),
       funnelStages: {
@@ -1037,7 +1076,10 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     offers,
     funnelStages: HUNTFLOW_FUNNEL_STAGES,
     funnelGroupsByVacancy: buildFunnelGroupsByVacancy(funnelGroupRows),
-    sourcesSummary: buildSourceSummary(cvSourceRows),
+    funnelGroupsByRecruiter: buildFunnelGroupsByRecruiter(funnelGroupRecruiterRows),
+    sourceDetails: buildSourceSummary(cvSourceRows),
+    sourcesSummary: buildSourceSummary(cvSourceSummaryRows),
+    sourcesByRecruiterSummary: buildSourceSummary(cvSourceRecruiterSummaryRows),
     sourcesByVacancy: [],
     dataQuality: buildDataQualitySummary(dataQualityRows),
     recruiterWorkload,
@@ -1168,7 +1210,10 @@ function CurrentMvp({
 
   const {
     funnelGroupsByVacancy,
+    funnelGroupsByRecruiter,
+    sourceDetails,
     sourcesSummary,
+    sourcesByRecruiterSummary,
     vacancies,
     recruiterWorkload: recruiterWorkloadRows,
     reviewIssues,
@@ -1425,12 +1470,6 @@ function CurrentMvp({
   const filteredVacancySourceIds = new Set(filteredVacancies.map((vacancy) => vacancy.sourceId));
   const filteredVacancyTitles = new Set(filteredVacancies.map((vacancy) => vacancy.title));
   const isPeriodActive = periodFrom !== "" || periodTo !== "";
-  const isVacancyScoped =
-    selectedDepartment !== DEFAULT_DEPARTMENT ||
-    selectedTeam !== DEFAULT_TEAM ||
-    selectedRecruiter !== DEFAULT_RECRUITER ||
-    selectedVacancyId !== DEFAULT_VACANCY ||
-    isPeriodActive;
   const activeVacancies = filteredVacancies.filter((vacancy) => isActiveStatus(vacancy.status));
   const closedVacancies = filteredVacancies.filter(isClosedForSla);
   const slaEligibleVacancies = filteredVacancies.filter((vacancy) => vacancy.status !== "frozen");
@@ -1474,6 +1513,7 @@ function CurrentMvp({
       filteredVacancyTitles.has(row.vacancyTitle)
   );
   const hasManagementFunnelData = funnelGroupsByVacancy.length > 0;
+  const hasRecruiterManagementFunnelData = funnelGroupsByRecruiter.length > 0;
   const hasFilteredManagementFunnelData = filteredFunnelGroupRows.length > 0;
   const funnelGroupCountsByKey = new Map<string, { stage: string; order: number; count: number }>();
 
@@ -1501,7 +1541,25 @@ function CurrentMvp({
   const stageCount = (stage: string) =>
     funnelStageCounts.find((item) => item.stage === stage)?.count || 0;
   const currentJobOffers = stageCount("Оффер выставлен");
-  const currentAcceptedOffers = stageCount("Оффер принят");
+  const periodFromTimestamp = parseDateInput(periodFrom);
+  const periodToTimestamp = parseDateInput(periodTo);
+  const acceptedOffersFromTotal = vacancies.filter((vacancy) => {
+    if (!vacancyMatchesFilters(vacancy)) {
+      return false;
+    }
+
+    const lifecycleStatus = normalizeStatus(vacancy.vacancy_lifecycle_status || vacancy.source_status_total);
+    const isAcceptedOfferVacancy = lifecycleStatus === "closed" || lifecycleStatus === "waiting_start";
+    const acceptedInPeriod =
+      vacancy.offerAcceptDate > 0 &&
+      (!periodFromTimestamp || vacancy.offerAcceptDate >= periodFromTimestamp) &&
+      (!periodToTimestamp || vacancy.offerAcceptDate <= periodToTimestamp);
+
+    return isAcceptedOfferVacancy && acceptedInPeriod;
+  }).length;
+  const currentAcceptedOffers = isPeriodActive
+    ? acceptedOffersFromTotal
+    : stageCount("Оффер принят");
   const currentRecruiterStageCount = stageCount("Рекрутер");
   const interviewTargets = {
     offer: {
@@ -1631,7 +1689,8 @@ function CurrentMvp({
     transition: item.stage,
     conversion: funnelBaseCount === 0 ? "—" : item.stage === "Новые" ? "100%" : percentOneDecimal(item.count, funnelBaseCount),
     conversionValue: funnelBaseCount > 0 ? (item.count / funnelBaseCount) * 100 : 0,
-    previousStage: ""
+    previousStage: "",
+    isOptional: item.stage === "Тестирование"
   }));
   const funnelStepBaseByGroup: Record<string, string> = {
     Контакт: "Новые",
@@ -1679,30 +1738,42 @@ function CurrentMvp({
     }
   >();
 
-  filteredFunnelGroupRows.forEach((row) => {
-    const key = normalizeRecruiterKey(row.recruiter || row.recruiterCanonical || "Не указано") || "не указано";
-    const current = recruiterFunnelByKey.get(key) || {
-      name: row.recruiter || row.recruiterCanonical || "Не указано",
-      newCount: 0,
-      contact: 0,
-      primaryInterviews: 0,
-      hmInterviews: 0,
-      team: 0,
-      testing: 0,
-      jobOffers: 0,
-      acceptedOffers: 0
-    };
+  funnelGroupsByRecruiter
+    .filter((row) => {
+      if (selectedRecruiter === DEFAULT_RECRUITER) {
+        return true;
+      }
 
-    if (row.groupName === "Новые") current.newCount += row.count;
-    if (row.groupName === "Контакт") current.contact += row.count;
-    if (row.groupName === "Рекрутер") current.primaryInterviews += row.count;
-    if (row.groupName === "Нанимающий менеджер") current.hmInterviews += row.count;
-    if (row.groupName === "Команда") current.team += row.count;
-    if (row.groupName === "Тестирование") current.testing += row.count;
-    if (row.groupName === "Оффер выставлен") current.jobOffers += row.count;
-    if (row.groupName === "Оффер принят") current.acceptedOffers += row.count;
-    recruiterFunnelByKey.set(key, current);
-  });
+      const selectedKey = normalizeRecruiterKey(selectedRecruiter);
+      return (
+        normalizeRecruiterKey(row.recruiter) === selectedKey ||
+        normalizeRecruiterKey(row.recruiterCanonical) === selectedKey
+      );
+    })
+    .forEach((row) => {
+      const key = normalizeRecruiterKey(row.recruiter || row.recruiterCanonical || "Не указано") || "не указано";
+      const current = recruiterFunnelByKey.get(key) || {
+        name: row.recruiter || row.recruiterCanonical || "Не указано",
+        newCount: 0,
+        contact: 0,
+        primaryInterviews: 0,
+        hmInterviews: 0,
+        team: 0,
+        testing: 0,
+        jobOffers: 0,
+        acceptedOffers: 0
+      };
+
+      if (row.groupName === "Новые") current.newCount += row.count;
+      if (row.groupName === "Контакт") current.contact += row.count;
+      if (row.groupName === "Рекрутер") current.primaryInterviews += row.count;
+      if (row.groupName === "Нанимающий менеджер") current.hmInterviews += row.count;
+      if (row.groupName === "Команда") current.team += row.count;
+      if (row.groupName === "Тестирование") current.testing += row.count;
+      if (row.groupName === "Оффер выставлен") current.jobOffers += row.count;
+      if (row.groupName === "Оффер принят") current.acceptedOffers += row.count;
+      recruiterFunnelByKey.set(key, current);
+    });
 
   const recruiterFunnelRows = Array.from(recruiterFunnelByKey.values())
     .filter(
@@ -1749,15 +1820,25 @@ function CurrentMvp({
     ]),
     1
   );
-  const filteredSourceRows = sourcesSummary.filter((source) => {
+  const hasDetailedSourceFilters =
+    selectedDepartment !== DEFAULT_DEPARTMENT ||
+    selectedTeam !== DEFAULT_TEAM ||
+    selectedVacancyId !== DEFAULT_VACANCY ||
+    isPeriodActive;
+  const sourceRowsForCurrentSlice = hasDetailedSourceFilters
+    ? sourceDetails
+    : selectedRecruiter === DEFAULT_RECRUITER
+      ? sourcesSummary
+      : sourcesByRecruiterSummary;
+  const filteredSourceRows = sourceRowsForCurrentSlice.filter((source) => {
     const departmentMatch = selectedDepartment === DEFAULT_DEPARTMENT || source.department === selectedDepartment;
     const teamMatch = selectedTeam === DEFAULT_TEAM || source.team === selectedTeam;
     const recruiterMatch =
       selectedRecruiter === DEFAULT_RECRUITER ||
-      source.recruiter === selectedRecruiter ||
-      source.recruiterCanonical === selectedRecruiter;
+      normalizeRecruiterKey(source.recruiter) === normalizeRecruiterKey(selectedRecruiter) ||
+      normalizeRecruiterKey(source.recruiterCanonical) === normalizeRecruiterKey(selectedRecruiter);
     const vacancyMatch =
-      !isVacancyScoped ||
+      !hasDetailedSourceFilters ||
       filteredVacancySourceIds.has(source.vacancyId) ||
       filteredVacancyTitles.has(source.vacancyTitle) ||
       (selectedVacancy ? source.vacancyTitle === selectedVacancy.title : false);
@@ -2285,7 +2366,9 @@ function CurrentMvp({
                     ? "Каждый этап считается от общего числа новых кандидатов"
                     : funnelScope === "stages"
                       ? "Переход считается между соседними управленческими группами. У разных вакансий маршруты могут отличаться"
-                      : "Управленческие группы по рекрутерам в текущем срезе"}
+                      : selectedRecruiter === DEFAULT_RECRUITER
+                        ? "Группы рассчитаны напрямую по строкам рекрутеров из отчета Huntflow"
+                        : `Данные Huntflow только по рекрутеру ${selectedRecruiter}`}
                 </span>
               </div>
 
@@ -2445,9 +2528,9 @@ function CurrentMvp({
                   </div>
                 ))}
               </div>
-            ) : !hasManagementFunnelData ? (
+            ) : !hasRecruiterManagementFunnelData ? (
               <p className="empty-state">
-                В файле нет данных управленческой воронки. Пересоберите dashboard_data.xlsx новой версией скрипта.
+                В файле нет отдельной управленческой воронки по рекрутерам. Пересоберите dashboard_data.xlsx новой версией скрипта.
               </p>
             ) : recruiterFunnelRows.length === 0 ? (
               <p className="empty-state">По выбранным фильтрам данных по рекрутерам нет.</p>
@@ -3028,7 +3111,7 @@ function CurrentMvp({
           {sourceRows.length === 0 ? (
             <div className="empty-state sources-empty">
               <span>
-                {sourcesSummary.length === 0
+                {sourceDetails.length === 0 && sourcesSummary.length === 0 && sourcesByRecruiterSummary.length === 0
                   ? "В текущем файле нет данных по источникам кандидатов"
                   : "По выбранным фильтрам источников нет"}
               </span>
