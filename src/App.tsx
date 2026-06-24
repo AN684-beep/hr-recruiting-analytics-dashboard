@@ -77,7 +77,7 @@ const INFO_TEXTS = {
   period:
     "Период можно считать по дате открытия, дате закрытия или по вакансиям, которые были в работе в выбранные даты.",
   kpi:
-    "Показатели считаются по выбранным фильтрам. Офферы берутся из Huntflow: «Всего офферов» — Job offer, «Принято офферов» — «Оффер принят».",
+    "Показатели считаются по выбранным фильтрам. «Всего офферов» берется из группы Huntflow «Оффер выставлен». «Принято офферов» считается по дате принятия оффера из Total.",
   funnel:
     "Группы воронки сначала считаются внутри каждой вакансии или строки отчета, а затем суммируются по выбранному набору: рекрутеру, вакансии, департаменту или всей команде.\n\nДля простых этапов берется значение одного этапа. Для групп, которые объединяют несколько похожих или последовательных этапов, используется специальная логика, чтобы не задваивать кандидатов.\n\nНапример, группа «Команда» объединяет кросс-функциональные интервью, HR BP, НМ+1, LT, HRD, CEO и финальное интервью. Внутри одной вакансии или строки берется максимальное значение среди этих этапов, а не сумма. Это нужно, чтобы один и тот же кандидат не считался несколько раз, если он проходил несколько финальных этапов.\n\nКогда выбран не один объект, а несколько вакансий, рекрутер или вся команда, итоговая воронка получается как сумма уже рассчитанных групп по выбранным данным.",
   funnelMode:
@@ -1341,7 +1341,8 @@ function CurrentMvp({
     const recruiterMatch =
       skippedFilter === "recruiter" ||
       selectedRecruiter === DEFAULT_RECRUITER ||
-      vacancy.recruiter === selectedRecruiter;
+      normalizeRecruiterKey(vacancy.recruiter) === normalizeRecruiterKey(selectedRecruiter) ||
+      normalizeRecruiterKey(vacancy.recruiter_canonical) === normalizeRecruiterKey(selectedRecruiter);
     const vacancyMatch =
       skippedFilter === "vacancy" ||
       selectedVacancyId === DEFAULT_VACANCY ||
@@ -1557,9 +1558,7 @@ function CurrentMvp({
 
     return isAcceptedOfferVacancy && acceptedInPeriod;
   }).length;
-  const currentAcceptedOffers = isPeriodActive
-    ? acceptedOffersFromTotal
-    : stageCount("Оффер принят");
+  const currentAcceptedOffers = acceptedOffersFromTotal;
   const currentRecruiterStageCount = stageCount("Рекрутер");
   const interviewTargets = {
     offer: {
@@ -1670,7 +1669,7 @@ function CurrentMvp({
     {
       label: "Принято офферов",
       value: currentAcceptedOffers,
-      hint: "По этапу «Оффер принят» в текущем срезе",
+      hint: "По дате принятия оффера в выбранном периоде",
       tone: "waiting"
     },
     {
@@ -2760,7 +2759,7 @@ function CurrentMvp({
             <div className="section-heading">
               <div>
                 <h2>Офферы</h2>
-                <span>По группам «Оффер выставлен» и «Оффер принят» в текущем срезе</span>
+                <span>Выставленные — Huntflow, принятые — по дате из Total</span>
               </div>
             </div>
 
