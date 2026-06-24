@@ -77,7 +77,7 @@ const INFO_TEXTS = {
   period:
     "Период можно считать по дате открытия, дате закрытия или по вакансиям, которые были в работе в выбранные даты.",
   kpi:
-    "Офферные KPI относятся к периоду исходной выгрузки Huntflow. «Всего офферов» — группа «Оффер выставлен», «Принято офферов» — группа «Оффер принят». Календарный фильтр вакансий не пересчитывает этапы Huntflow, потому что в файле нет дат переходов кандидатов.",
+    "Показатели считаются по выбранным фильтрам. Офферы берутся из Huntflow: «Всего офферов» — «Оффер выставлен», «Принято офферов» — «Оффер принят».",
   funnel:
     "Группы воронки сначала считаются внутри каждой вакансии или строки отчета, а затем суммируются по выбранному набору: рекрутеру, вакансии, департаменту или всей команде.\n\nДля простых этапов берется значение одного этапа. Для групп, которые объединяют несколько похожих или последовательных этапов, используется специальная логика, чтобы не задваивать кандидатов.\n\nНапример, группа «Команда» объединяет кросс-функциональные интервью, HR BP, НМ+1, LT, HRD, CEO и финальное интервью. Внутри одной вакансии или строки берется максимальное значение среди этих этапов, а не сумма. Это нужно, чтобы один и тот же кандидат не считался несколько раз, если он проходил несколько финальных этапов.\n\nКогда выбран не один объект, а несколько вакансий, рекрутер или вся команда, итоговая воронка получается как сумма уже рассчитанных групп по выбранным данным.",
   funnelMode:
@@ -1504,11 +1504,17 @@ function CurrentMvp({
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
   const currentRisk = riskyVacancies[safeRiskIndex];
-  const filteredFunnelGroupRows = funnelGroupsByVacancy.filter(
-    (row) =>
+  const filteredFunnelGroupRows = funnelGroupsByVacancy.filter((row) => {
+    const vacancyMatch =
       filteredVacancySourceIds.has(row.vacancyId) ||
-      filteredVacancyTitles.has(row.vacancyTitle)
-  );
+      (!row.vacancyId && filteredVacancyTitles.has(row.vacancyTitle));
+    const recruiterMatch =
+      selectedRecruiter === DEFAULT_RECRUITER ||
+      normalizeRecruiterKey(row.recruiter) === normalizeRecruiterKey(selectedRecruiter) ||
+      normalizeRecruiterKey(row.recruiterCanonical) === normalizeRecruiterKey(selectedRecruiter);
+
+    return vacancyMatch && recruiterMatch;
+  });
   const hasManagementFunnelData = funnelGroupsByVacancy.length > 0;
   const hasRecruiterManagementFunnelData = funnelGroupsByRecruiter.length > 0;
   const hasFilteredManagementFunnelData = filteredFunnelGroupRows.length > 0;
@@ -1537,34 +1543,8 @@ function CurrentMvp({
   });
   const stageCount = (stage: string) =>
     funnelStageCounts.find((item) => item.stage === stage)?.count || 0;
-  const hasDetailedOfferFilters =
-    selectedDepartment !== DEFAULT_DEPARTMENT ||
-    selectedTeam !== DEFAULT_TEAM ||
-    selectedVacancyId !== DEFAULT_VACANCY;
-  const offerVacancies = vacancies.filter((vacancy) => vacancyMatchesFilters(vacancy));
-  const offerVacancyIds = new Set(offerVacancies.map((vacancy) => vacancy.sourceId));
-  const offerVacancyTitles = new Set(offerVacancies.map((vacancy) => vacancy.title));
-  const offerFunnelRows = hasDetailedOfferFilters
-    ? funnelGroupsByVacancy.filter(
-      (row) => offerVacancyIds.has(row.vacancyId) || offerVacancyTitles.has(row.vacancyTitle)
-    )
-    : funnelGroupsByRecruiter.filter((row) => {
-      if (selectedRecruiter === DEFAULT_RECRUITER) {
-        return true;
-      }
-
-      const selectedKey = normalizeRecruiterKey(selectedRecruiter);
-      return (
-        normalizeRecruiterKey(row.recruiter) === selectedKey ||
-        normalizeRecruiterKey(row.recruiterCanonical) === selectedKey
-      );
-    });
-  const offerStageCount = (stage: string) =>
-    offerFunnelRows
-      .filter((row) => row.groupName === stage)
-      .reduce((sum, row) => sum + row.count, 0);
-  const currentJobOffers = offerStageCount("Оффер выставлен");
-  const currentAcceptedOffers = offerStageCount("Оффер принят");
+  const currentJobOffers = stageCount("Оффер выставлен");
+  const currentAcceptedOffers = stageCount("Оффер принят");
   const currentRecruiterStageCount = stageCount("Рекрутер");
   const interviewTargets = {
     offer: {
@@ -1669,17 +1649,13 @@ function CurrentMvp({
     {
       label: "Всего офферов",
       value: currentJobOffers,
-      hint: isPeriodActive
-        ? "За период выгрузки Huntflow · календарный период не применяется"
-        : "По группе «Оффер выставлен» за период выгрузки Huntflow",
+      hint: "По группе «Оффер выставлен»",
       tone: "neutral"
     },
     {
       label: "Принято офферов",
       value: currentAcceptedOffers,
-      hint: isPeriodActive
-        ? "За период выгрузки Huntflow · календарный период не применяется"
-        : "По группе «Оффер принят» за период выгрузки Huntflow",
+      hint: "По этапу «Оффер принят» в текущем срезе",
       tone: "waiting"
     },
     {
@@ -2769,11 +2745,7 @@ function CurrentMvp({
             <div className="section-heading">
               <div>
                 <h2>Офферы</h2>
-                <span>
-                  {isPeriodActive
-                    ? "За период выгрузки Huntflow · календарный период не применяется"
-                    : "По группам «Оффер выставлен» и «Оффер принят» за период выгрузки Huntflow"}
-                </span>
+                <span>По группам «Оффер выставлен» и «Оффер принят» в текущем срезе</span>
               </div>
             </div>
 
