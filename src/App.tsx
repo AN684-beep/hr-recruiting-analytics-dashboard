@@ -77,7 +77,7 @@ const INFO_TEXTS = {
   period:
     "Период можно считать по дате открытия, дате закрытия или по вакансиям, которые были в работе в выбранные даты.",
   kpi:
-    "Показатели считаются по выбранным фильтрам. Офферы берутся из Huntflow: «Всего офферов» — «Оффер выставлен», «Принято офферов» — «Оффер принят».",
+    "Показатели считаются по выбранным фильтрам. Офферы берутся из Huntflow: «Всего офферов» — Job offer, «Принято офферов» — «Оффер принят».",
   funnel:
     "Группы воронки сначала считаются внутри каждой вакансии или строки отчета, а затем суммируются по выбранному набору: рекрутеру, вакансии, департаменту или всей команде.\n\nДля простых этапов берется значение одного этапа. Для групп, которые объединяют несколько похожих или последовательных этапов, используется специальная логика, чтобы не задваивать кандидатов.\n\nНапример, группа «Команда» объединяет кросс-функциональные интервью, HR BP, НМ+1, LT, HRD, CEO и финальное интервью. Внутри одной вакансии или строки берется максимальное значение среди этих этапов, а не сумма. Это нужно, чтобы один и тот же кандидат не считался несколько раз, если он проходил несколько финальных этапов.\n\nКогда выбран не один объект, а несколько вакансий, рекрутер или вся команда, итоговая воронка получается как сумма уже рассчитанных групп по выбранным данным.",
   funnelMode:
@@ -107,6 +107,7 @@ type Vacancy = {
   target_days_total: unknown;
   actual_close_days_total: unknown;
   days_in_work_total: unknown;
+  offer_accept_date_total: unknown;
   targetCloseDays: number;
   actualCloseDays: number;
   gradeTargetDays: number;
@@ -117,6 +118,7 @@ type Vacancy = {
   slaDays: number;
   openDate: number;
   closeDate: number;
+  offerAcceptDate: number;
   openDateDisplay: string;
   closeDateDisplay: string;
   funnelStages: Record<string, number>;
@@ -963,6 +965,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       target_days_total: row.target_days_total,
       actual_close_days_total: row.actual_close_days_total,
       days_in_work_total: row.days_in_work_total,
+      offer_accept_date_total: row.offer_accept_date_total,
       targetCloseDays,
       actualCloseDays,
       gradeTargetDays: targetCloseDays,
@@ -973,6 +976,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
       slaDays,
       openDate: dateTimestamp(row.open_date || row.open_date_total),
       closeDate: dateTimestamp(row.close_date || row.close_date_total || row.actual_close_date || row.hf_actual_close_date),
+      offerAcceptDate: dateTimestamp(row.offer_accept_date_total),
       openDateDisplay: asText(row.open_date_display),
       closeDateDisplay: asText(row.close_date_display),
       funnelStages: {
@@ -1337,8 +1341,7 @@ function CurrentMvp({
     const recruiterMatch =
       skippedFilter === "recruiter" ||
       selectedRecruiter === DEFAULT_RECRUITER ||
-      normalizeRecruiterKey(vacancy.recruiter) === normalizeRecruiterKey(selectedRecruiter) ||
-      normalizeRecruiterKey(vacancy.recruiter_canonical) === normalizeRecruiterKey(selectedRecruiter);
+      vacancy.recruiter === selectedRecruiter;
     const vacancyMatch =
       skippedFilter === "vacancy" ||
       selectedVacancyId === DEFAULT_VACANCY ||
@@ -1538,7 +1541,25 @@ function CurrentMvp({
   const stageCount = (stage: string) =>
     funnelStageCounts.find((item) => item.stage === stage)?.count || 0;
   const currentJobOffers = stageCount("Оффер выставлен");
-  const currentAcceptedOffers = stageCount("Оффер принят");
+  const periodFromTimestamp = parseDateInput(periodFrom);
+  const periodToTimestamp = parseDateInput(periodTo);
+  const acceptedOffersFromTotal = vacancies.filter((vacancy) => {
+    if (!vacancyMatchesFilters(vacancy)) {
+      return false;
+    }
+
+    const lifecycleStatus = normalizeStatus(vacancy.vacancy_lifecycle_status || vacancy.source_status_total);
+    const isAcceptedOfferVacancy = lifecycleStatus === "closed" || lifecycleStatus === "waiting_start";
+    const acceptedInPeriod =
+      vacancy.offerAcceptDate > 0 &&
+      (!periodFromTimestamp || vacancy.offerAcceptDate >= periodFromTimestamp) &&
+      (!periodToTimestamp || vacancy.offerAcceptDate <= periodToTimestamp);
+
+    return isAcceptedOfferVacancy && acceptedInPeriod;
+  }).length;
+  const currentAcceptedOffers = isPeriodActive
+    ? acceptedOffersFromTotal
+    : stageCount("Оффер принят");
   const currentRecruiterStageCount = stageCount("Рекрутер");
   const interviewTargets = {
     offer: {
