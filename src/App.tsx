@@ -1504,17 +1504,11 @@ function CurrentMvp({
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
   const currentRisk = riskyVacancies[safeRiskIndex];
-  const filteredFunnelGroupRows = funnelGroupsByVacancy.filter((row) => {
-    const vacancyMatch =
+  const filteredFunnelGroupRows = funnelGroupsByVacancy.filter(
+    (row) =>
       filteredVacancySourceIds.has(row.vacancyId) ||
-      (!row.vacancyId && filteredVacancyTitles.has(row.vacancyTitle));
-    const recruiterMatch =
-      selectedRecruiter === DEFAULT_RECRUITER ||
-      normalizeRecruiterKey(row.recruiter) === normalizeRecruiterKey(selectedRecruiter) ||
-      normalizeRecruiterKey(row.recruiterCanonical) === normalizeRecruiterKey(selectedRecruiter);
-
-    return vacancyMatch && recruiterMatch;
-  });
+      filteredVacancyTitles.has(row.vacancyTitle)
+  );
   const hasManagementFunnelData = funnelGroupsByVacancy.length > 0;
   const hasRecruiterManagementFunnelData = funnelGroupsByRecruiter.length > 0;
   const hasFilteredManagementFunnelData = filteredFunnelGroupRows.length > 0;
