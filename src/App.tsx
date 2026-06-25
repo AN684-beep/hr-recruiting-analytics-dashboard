@@ -78,6 +78,8 @@ const INFO_TEXTS = {
     "Период можно считать по дате открытия, дате закрытия или по вакансиям, которые были в работе в выбранные даты.",
   kpi:
     "Показатели считаются по выбранным фильтрам. Офферы берутся из Movement Huntflow по датам перехода на этапы «Оффер выставлен» и «Оффер принят».",
+  offersKpi:
+    "Офферы считаются по переходам кандидатов в Huntflow: «Оффер выставлен» и «Оффер принят». Это события по кандидатам, а не количество вакансий. В одной вакансии может быть несколько принятых офферов, поэтому показатель может отличаться от количества закрытых вакансий.",
   funnel:
     "Группы воронки сначала считаются внутри каждой вакансии или строки отчета, а затем суммируются по выбранному набору: рекрутеру, вакансии, департаменту или всей команде.\n\nДля простых этапов берется значение одного этапа. Для групп, которые объединяют несколько похожих или последовательных этапов, используется специальная логика, чтобы не задваивать кандидатов.\n\nНапример, группа «Команда» объединяет кросс-функциональные интервью, HR BP, НМ+1, LT, HRD, CEO и финальное интервью. Внутри одной вакансии или строки берется максимальное значение среди этих этапов, а не сумма. Это нужно, чтобы один и тот же кандидат не считался несколько раз, если он проходил несколько финальных этапов.\n\nКогда выбран не один объект, а несколько вакансий, рекрутер или вся команда, итоговая воронка получается как сумма уже рассчитанных групп по выбранным данным.",
   funnelMode:
@@ -1734,18 +1736,21 @@ function CurrentMvp({
       label: "Всего офферов",
       value: currentJobOffers,
       hint: "По Movement: переход на этап «Оффер выставлен»",
+      tooltip: INFO_TEXTS.offersKpi,
       tone: "neutral"
     },
     {
       label: "Принято офферов",
       value: currentAcceptedOffers,
       hint: "По Movement: переход на этап «Оффер принят»",
+      tooltip: INFO_TEXTS.offersKpi,
       tone: "waiting"
     },
     {
       label: "Принятие офферов",
       value: acceptanceRateLabel(currentAcceptedOffers, currentJobOffers),
       hint: "Оффер выставлен → «Оффер принят»",
+      tooltip: INFO_TEXTS.offersKpi,
       tone: currentAcceptedOffers > currentJobOffers ? "paused" : "closed"
     }
   ];
@@ -2377,7 +2382,12 @@ function CurrentMvp({
       <section className="kpi-grid" aria-label="Главные показатели">
         {topKpis.map((metric) => (
           <article className={`kpi-card ${metric.tone}`} key={metric.label}>
-            <span className="kpi-label">{metric.label}</span>
+            <span className="kpi-label">
+              <span>{metric.label}</span>
+              {"tooltip" in metric && metric.tooltip && (
+                <InfoTooltip text={metric.tooltip} label={`Пояснение: ${metric.label}`} />
+              )}
+            </span>
             <strong className="kpi-value">{metric.value}</strong>
             <span className="kpi-subtext">{metric.hint}</span>
           </article>
