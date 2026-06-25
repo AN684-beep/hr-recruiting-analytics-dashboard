@@ -77,7 +77,7 @@ const INFO_TEXTS = {
   period:
     "Период можно считать по дате открытия, дате закрытия или по вакансиям, которые были в работе в выбранные даты.",
   kpi:
-    "Показатели считаются по выбранным фильтрам. Офферы берутся из Huntflow: «Всего офферов» — «Оффер выставлен», «Принято офферов» — «Оффер принят».",
+    "Показатели считаются по выбранным фильтрам. Офферы берутся из Movement Huntflow по датам перехода на этапы «Оффер выставлен» и «Оффер принят».",
   funnel:
     "Группы воронки сначала считаются внутри каждой вакансии или строки отчета, а затем суммируются по выбранному набору: рекрутеру, вакансии, департаменту или всей команде.\n\nДля простых этапов берется значение одного этапа. Для групп, которые объединяют несколько похожих или последовательных этапов, используется специальная логика, чтобы не задваивать кандидатов.\n\nНапример, группа «Команда» объединяет кросс-функциональные интервью, HR BP, НМ+1, LT, HRD, CEO и финальное интервью. Внутри одной вакансии или строки берется максимальное значение среди этих этапов, а не сумма. Это нужно, чтобы один и тот же кандидат не считался несколько раз, если он проходил несколько финальных этапов.\n\nКогда выбран не один объект, а несколько вакансий, рекрутер или вся команда, итоговая воронка получается как сумма уже рассчитанных групп по выбранным данным.",
   funnelMode:
@@ -202,6 +202,20 @@ type FunnelGroupByRecruiterItem = {
   conversionFromNew: number;
 };
 
+type MovementEvent = {
+  eventDate: number;
+  stageToKey: string;
+  recruiter: string;
+  recruiterCanonical: string;
+  hfVacancyId: string;
+  hfVacancyName: string;
+  totalVacancyId: string;
+  totalVacancyName: string;
+  vacancyMatchStatus: string;
+  department: string;
+  team: string;
+};
+
 type RecruiterWorkloadItem = {
   name: string;
   canonical: string;
@@ -243,6 +257,7 @@ type DashboardData = {
   funnelStages: string[];
   funnelGroupsByVacancy: FunnelGroupByVacancyItem[];
   funnelGroupsByRecruiter: FunnelGroupByRecruiterItem[];
+  movementEvents: MovementEvent[];
   sourceDetails: SourceSummaryItem[];
   sourcesSummary: SourceSummaryItem[];
   sourcesByRecruiterSummary: SourceSummaryItem[];
@@ -265,6 +280,7 @@ const EMPTY_DASHBOARD_DATA: DashboardData = {
   funnelStages: [],
   funnelGroupsByVacancy: [],
   funnelGroupsByRecruiter: [],
+  movementEvents: [],
   sourceDetails: [],
   sourcesSummary: [],
   sourcesByRecruiterSummary: [],
@@ -820,6 +836,31 @@ const buildFunnelGroupsByRecruiter = (rows: ExcelRow[]): FunnelGroupByRecruiterI
     })
     .filter((item) => item.groupName && MANAGEMENT_FUNNEL_GROUPS.includes(item.groupName));
 
+const buildMovementEvents = (rows: ExcelRow[]): MovementEvent[] =>
+  rows
+    .map((row) => ({
+      eventDate: dateTimestamp(row.event_date),
+      stageToKey: normalizeText(row.stage_to_key).toLowerCase(),
+      recruiter: pickRecruiterDisplayName(
+        normalizeText(row.recruiter_display_name),
+        normalizeText(row.recruiter_raw),
+        normalizeText(row.recruiter_canonical)
+      ),
+      recruiterCanonical: normalizeText(row.recruiter_canonical),
+      hfVacancyId: normalizeText(row.hf_vacancy_id),
+      hfVacancyName: normalizeText(row.hf_vacancy_name),
+      totalVacancyId: normalizeText(row.total_vacancy_id),
+      totalVacancyName: normalizeText(row.total_vacancy_name),
+      vacancyMatchStatus: normalizeText(row.vacancy_match_status),
+      department: normalizeUnknown(row.department),
+      team: normalizeUnknown(row.team)
+    }))
+    .filter(
+      (event) =>
+        event.eventDate > 0 &&
+        (event.stageToKey === "job_offer" || event.stageToKey === "offer_accepted")
+    );
+
 const valueFromQualityRows = (rows: ExcelRow[], metric: string) => {
   const found = rows.find((row) => asText(row.metric) === metric);
   return asNumber(found?.value);
@@ -886,6 +927,11 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
   const cvSourceRows = readWorksheet(workbook, "cv_sources");
   const cvSourceSummaryRows = readWorksheet(workbook, "cv_sources_summary");
   const cvSourceRecruiterSummaryRows = readWorksheet(workbook, "cv_sources_by_recruiter_summary");
+  const movementEventRows = readWorksheet(workbook, "movement_events");
+  readWorksheet(workbook, "movement_unmatched_vacancies");
+  readWorksheet(workbook, "movement_offers_recruiter_month");
+  readWorksheet(workbook, "movement_offers_recruiter_day");
+  readWorksheet(workbook, "movement_offers_by_vacancy");
   const funnelGroupRows = readWorksheet(workbook, "funnel_groups_by_vacancy");
   const funnelGroupRecruiterRows = readWorksheet(workbook, "funnel_groups_by_recruiter");
   readWorksheet(workbook, "funnel_groups_summary");
@@ -1073,6 +1119,7 @@ const buildDashboardDataFromWorkbook = (workbook: XLSX.WorkBook): DashboardData 
     funnelStages: HUNTFLOW_FUNNEL_STAGES,
     funnelGroupsByVacancy: buildFunnelGroupsByVacancy(funnelGroupRows),
     funnelGroupsByRecruiter: buildFunnelGroupsByRecruiter(funnelGroupRecruiterRows),
+    movementEvents: buildMovementEvents(movementEventRows),
     sourceDetails: buildSourceSummary(cvSourceRows),
     sourcesSummary: buildSourceSummary(cvSourceSummaryRows),
     sourcesByRecruiterSummary: buildSourceSummary(cvSourceRecruiterSummaryRows),
@@ -1207,6 +1254,7 @@ function CurrentMvp({
   const {
     funnelGroupsByVacancy,
     funnelGroupsByRecruiter,
+    movementEvents,
     sourceDetails,
     sourcesSummary,
     sourcesByRecruiterSummary,
@@ -1537,18 +1585,60 @@ function CurrentMvp({
   });
   const stageCount = (stage: string) =>
     funnelStageCounts.find((item) => item.stage === stage)?.count || 0;
-  const currentJobOffers = stageCount("Оффер выставлен");
-  const currentAcceptedOffers = stageCount("Оффер принят");
+  const movementPeriodFrom = parseDateInput(periodFrom);
+  const movementPeriodTo = parseDateInput(periodTo);
+  const selectedRecruiterKeys = new Set<string>([normalizeRecruiterKey(selectedRecruiter)]);
+  vacancies.forEach((vacancy) => {
+    if (
+      normalizeRecruiterKey(vacancy.recruiter) === normalizeRecruiterKey(selectedRecruiter) ||
+      normalizeRecruiterKey(vacancy.recruiter_canonical) === normalizeRecruiterKey(selectedRecruiter)
+    ) {
+      selectedRecruiterKeys.add(normalizeRecruiterKey(vacancy.recruiter));
+      selectedRecruiterKeys.add(normalizeRecruiterKey(vacancy.recruiter_canonical));
+    }
+  });
+  const filteredMovementEvents = movementEvents.filter((event) => {
+    const periodMatch =
+      (!movementPeriodFrom || event.eventDate >= movementPeriodFrom) &&
+      (!movementPeriodTo || event.eventDate <= movementPeriodTo);
+    const recruiterMatch =
+      selectedRecruiter === DEFAULT_RECRUITER ||
+      selectedRecruiterKeys.has(normalizeRecruiterKey(event.recruiter)) ||
+      selectedRecruiterKeys.has(normalizeRecruiterKey(event.recruiterCanonical));
+    const departmentMatch =
+      selectedDepartment === DEFAULT_DEPARTMENT ||
+      normalizeTextKey(event.department) === normalizeTextKey(selectedDepartment);
+    const teamMatch =
+      selectedTeam === DEFAULT_TEAM ||
+      normalizeTextKey(event.team) === normalizeTextKey(selectedTeam);
+    const vacancyMatch =
+      selectedVacancyId === DEFAULT_VACANCY ||
+      event.totalVacancyId === selectedVacancyId ||
+      event.hfVacancyId === selectedVacancyId ||
+      (selectedVacancy
+        ? event.totalVacancyName === selectedVacancy.title || event.hfVacancyName === selectedVacancy.title
+        : false);
+
+    return periodMatch && recruiterMatch && departmentMatch && teamMatch && vacancyMatch;
+  });
+  const currentJobOffers = filteredMovementEvents.filter(
+    (event) => event.stageToKey === "job_offer"
+  ).length;
+  const currentAcceptedOffers = filteredMovementEvents.filter(
+    (event) => event.stageToKey === "offer_accepted"
+  ).length;
   const currentRecruiterStageCount = stageCount("Рекрутер");
+  const funnelJobOffers = stageCount("Оффер выставлен");
+  const funnelAcceptedOffers = stageCount("Оффер принят");
   const interviewTargets = {
     offer: {
       label: "Офферы",
-      value: currentJobOffers,
+      value: funnelJobOffers,
       subtitle: "Из этапа «Рекрутер» в оффер"
     },
     accepted: {
       label: "Принятые офферы",
-      value: currentAcceptedOffers,
+      value: funnelAcceptedOffers,
       subtitle: "Из этапа «Рекрутер» в принятый оффер"
     }
   };
@@ -1643,13 +1733,13 @@ function CurrentMvp({
     {
       label: "Всего офферов",
       value: currentJobOffers,
-      hint: "По группе «Оффер выставлен»",
+      hint: "По Movement: переход на этап «Оффер выставлен»",
       tone: "neutral"
     },
     {
       label: "Принято офферов",
       value: currentAcceptedOffers,
-      hint: "По этапу «Оффер принят» в текущем срезе",
+      hint: "По Movement: переход на этап «Оффер принят»",
       tone: "waiting"
     },
     {
@@ -2739,7 +2829,11 @@ function CurrentMvp({
             <div className="section-heading">
               <div>
                 <h2>Офферы</h2>
-                <span>По группам «Оффер выставлен» и «Оффер принят» в текущем срезе</span>
+                <span>
+                  {movementEvents.length > 0
+                    ? "По переходам Movement Huntflow в текущем срезе"
+                    : "Movement-данные отсутствуют в загруженном файле"}
+                </span>
               </div>
             </div>
 
