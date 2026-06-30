@@ -828,14 +828,19 @@ p {
 }
 
 .funnel-heading {
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 14px;
+  min-height: 58px;
 }
 
 .funnel-subtoolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   gap: 12px;
+  min-height: 68px;
   margin-bottom: 14px;
   border: 1px solid #e7edf5;
   border-radius: 14px;
@@ -865,9 +870,21 @@ p {
 
 .funnel-toolbar-controls {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.funnel-mode-control {
+  justify-content: flex-end;
+  width: 250px;
+}
+
+.funnel-mode-control.is-placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .funnel-row {
@@ -2009,6 +2026,14 @@ tbody tr.selected-row td {
 
   .funnel-toolbar-controls {
     justify-content: flex-start;
+  }
+
+  .funnel-mode-control {
+    width: auto;
+  }
+
+  .funnel-mode-control.is-placeholder {
+    display: none;
   }
 
   .funnel-step-label span {
