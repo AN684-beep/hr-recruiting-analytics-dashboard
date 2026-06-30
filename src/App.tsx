@@ -77,7 +77,7 @@ const INFO_TEXTS = {
   period:
     "Период можно считать по дате открытия, дате закрытия или по вакансиям, которые были в работе в выбранные даты.",
   kpi:
-    "Показатели считаются по выбранным фильтрам. Офферы берутся из Huntflow по датам перехода на этапы «Оффер выставлен» и «Оффер принят».",
+    "Показатели считаются по выбранным фильтрам. Офферы берутся из Movement Huntflow по датам перехода на этапы «Оффер выставлен» и «Оффер принят».",
   offersKpi:
     "Офферы считаются по переходам кандидатов в Huntflow: «Оффер выставлен» и «Оффер принят». Это события по кандидатам, а не количество вакансий. В одной вакансии может быть несколько принятых офферов, поэтому показатель может отличаться от количества закрытых вакансий.",
   funnel:
@@ -1630,17 +1630,15 @@ function CurrentMvp({
     (event) => event.stageToKey === "offer_accepted"
   ).length;
   const currentRecruiterStageCount = stageCount("Рекрутер");
-  const funnelJobOffers = stageCount("Оффер выставлен");
-  const funnelAcceptedOffers = stageCount("Оффер принят");
   const interviewTargets = {
     offer: {
       label: "Офферы",
-      value: funnelJobOffers,
+      value: currentJobOffers,
       subtitle: "Из этапа «Рекрутер» в оффер"
     },
     accepted: {
       label: "Принятые офферы",
-      value: funnelAcceptedOffers,
+      value: currentAcceptedOffers,
       subtitle: "Из этапа «Рекрутер» в принятый оффер"
     }
   };
@@ -1735,14 +1733,14 @@ function CurrentMvp({
     {
       label: "Всего офферов",
       value: currentJobOffers,
-      hint: "Переход на этап «Оффер выставлен»",
+      hint: "По Movement: переход на этап «Оффер выставлен»",
       tooltip: INFO_TEXTS.offersKpi,
       tone: "neutral"
     },
     {
       label: "Принято офферов",
       value: currentAcceptedOffers,
-      hint: "Переход на этап «Оффер принят»",
+      hint: "По Movement: переход на этап «Оффер принят»",
       tooltip: INFO_TEXTS.offersKpi,
       tone: "waiting"
     },
