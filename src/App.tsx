@@ -1789,9 +1789,9 @@ function CurrentMvp({
     };
   });
   const funnel = funnelStageMode === "fromNew" ? funnelFromNewRows : funnelStepRows;
-
+  const funnelDonutRows = funnelStageMode === "fromNew" ? funnelFromNewRows : funnelStepRows;
   const funnelDonutBackground = buildConicGradient(
-    funnelFromNewRows.map((item) => item.count),
+    funnelDonutRows.map((item) => item.conversionValue),
     FUNNEL_CHART_COLORS
   );
   const recruiterFunnelByKey = new Map<
@@ -2539,25 +2539,36 @@ function CurrentMvp({
                   </tbody>
                 </table>
               </div>
-            ) : funnelScope === "stages" && funnelStageMode === "fromNew" ? (
+            ) : funnelScope === "stages" ? (
               <div className="donut-panel">
                 <div
                   className="donut-chart"
                   style={{ background: funnelDonutBackground }}
-                  aria-label="Распределение кандидатов по этапам"
+                  aria-label={
+                    funnelStageMode === "fromNew"
+                      ? "Доля кандидатов по этапам от новых"
+                      : "Конверсия кандидатов из этапа в этап"
+                  }
                 >
                   <span>100%</span>
-                  <small>от новых</small>
+                  <small>{funnelStageMode === "fromNew" ? "от новых" : "из этапа"}</small>
                 </div>
                 <div className="donut-legend">
-                  <p className="metric-explain">Доля этапов от общего числа новых кандидатов</p>
-                  {funnelFromNewRows.map((item, index) => (
-                    <div className="legend-row" key={item.stage}>
+                  <p className="metric-explain">
+                    {funnelStageMode === "fromNew"
+                      ? "Доля этапов от общего числа новых кандидатов"
+                      : "Конверсия от предыдущего отображаемого этапа"}
+                  </p>
+                  {funnelDonutRows.map((item, index) => (
+                    <div
+                      className="legend-row"
+                      key={funnelStageMode === "fromNew" ? item.stage : item.transition}
+                    >
                       <i style={{ backgroundColor: FUNNEL_CHART_COLORS[index % FUNNEL_CHART_COLORS.length] }} />
                       <div>
-                        <span className={item.stage === "Тестирование" ? "inline-info-label" : undefined}>
-                          {item.stage}
-                          {item.stage === "Тестирование" && (
+                        <span className={item.isOptional ? "inline-info-label" : undefined}>
+                          {funnelStageMode === "fromNew" ? item.stage : item.transition}
+                          {item.isOptional && (
                             <InfoTooltip text={INFO_TEXTS.testing} label="Пояснение про тестирование" />
                           )}
                         </span>
@@ -2566,32 +2577,6 @@ function CurrentMvp({
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : funnelScope === "stages" ? (
-              <div className="funnel-step-chart">
-                {funnelStepRows.map((item) => (
-                  <div className={`funnel-step-row ${item.isOptional ? "funnel-step-row-secondary" : ""}`} key={item.transition}>
-                    <div className="funnel-step-label">
-                      <strong>
-                        <span className={item.isOptional ? "inline-info-label" : undefined}>
-                          {item.transition}
-                          {item.isOptional && (
-                            <InfoTooltip text={INFO_TEXTS.testing} label="Пояснение про тестирование" />
-                          )}
-                        </span>
-                      </strong>
-                      <span>
-                        {item.count} кандидатов · {item.conversion}
-                      </span>
-                    </div>
-                    <div className="funnel-track">
-                      <div
-                        className="funnel-bar"
-                        style={{ width: `${Math.min(Math.max(item.conversionValue, 0), 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
               </div>
             ) : !hasRecruiterManagementFunnelData ? (
               <p className="empty-state">
@@ -2646,7 +2631,7 @@ function CurrentMvp({
                   aria-label="Воронка выбранного рекрутера по этапам"
                 >
                   <span>100%</span>
-                  <small>воронка рекрутера</small>
+                  <small>по рекрутеру</small>
                 </div>
                 <div className="donut-legend">
                   <p className="metric-explain">Этапы рекрутера: {selectedRecruiterFunnel.name}</p>
