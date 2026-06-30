@@ -1255,7 +1255,6 @@ function CurrentMvp({
 
   const {
     funnelGroupsByVacancy,
-    funnelGroupsByRecruiter,
     movementEvents,
     sourceDetails,
     sourcesSummary,
@@ -1560,7 +1559,7 @@ function CurrentMvp({
       filteredVacancyTitles.has(row.vacancyTitle)
   );
   const hasManagementFunnelData = funnelGroupsByVacancy.length > 0;
-  const hasRecruiterManagementFunnelData = funnelGroupsByRecruiter.length > 0;
+  const hasRecruiterManagementFunnelData = funnelGroupsByVacancy.length > 0;
   const hasFilteredManagementFunnelData = filteredFunnelGroupRows.length > 0;
   const funnelGroupCountsByKey = new Map<string, { stage: string; order: number; count: number }>();
 
@@ -1810,42 +1809,30 @@ function CurrentMvp({
     }
   >();
 
-  funnelGroupsByRecruiter
-    .filter((row) => {
-      if (selectedRecruiter === DEFAULT_RECRUITER) {
-        return true;
-      }
+  filteredFunnelGroupRows.forEach((row) => {
+    const key = normalizeRecruiterKey(row.recruiter || row.recruiterCanonical || "Не указано") || "не указано";
+    const current = recruiterFunnelByKey.get(key) || {
+      name: row.recruiter || row.recruiterCanonical || "Не указано",
+      newCount: 0,
+      contact: 0,
+      primaryInterviews: 0,
+      hmInterviews: 0,
+      team: 0,
+      testing: 0,
+      jobOffers: 0,
+      acceptedOffers: 0
+    };
 
-      const selectedKey = normalizeRecruiterKey(selectedRecruiter);
-      return (
-        normalizeRecruiterKey(row.recruiter) === selectedKey ||
-        normalizeRecruiterKey(row.recruiterCanonical) === selectedKey
-      );
-    })
-    .forEach((row) => {
-      const key = normalizeRecruiterKey(row.recruiter || row.recruiterCanonical || "Не указано") || "не указано";
-      const current = recruiterFunnelByKey.get(key) || {
-        name: row.recruiter || row.recruiterCanonical || "Не указано",
-        newCount: 0,
-        contact: 0,
-        primaryInterviews: 0,
-        hmInterviews: 0,
-        team: 0,
-        testing: 0,
-        jobOffers: 0,
-        acceptedOffers: 0
-      };
-
-      if (row.groupName === "Новые") current.newCount += row.count;
-      if (row.groupName === "Контакт") current.contact += row.count;
-      if (row.groupName === "Рекрутер") current.primaryInterviews += row.count;
-      if (row.groupName === "Нанимающий менеджер") current.hmInterviews += row.count;
-      if (row.groupName === "Команда") current.team += row.count;
-      if (row.groupName === "Тестирование") current.testing += row.count;
-      if (row.groupName === "Оффер выставлен") current.jobOffers += row.count;
-      if (row.groupName === "Оффер принят") current.acceptedOffers += row.count;
-      recruiterFunnelByKey.set(key, current);
-    });
+    if (row.groupName === "Новые") current.newCount += row.count;
+    if (row.groupName === "Контакт") current.contact += row.count;
+    if (row.groupName === "Рекрутер") current.primaryInterviews += row.count;
+    if (row.groupName === "Нанимающий менеджер") current.hmInterviews += row.count;
+    if (row.groupName === "Команда") current.team += row.count;
+    if (row.groupName === "Тестирование") current.testing += row.count;
+    if (row.groupName === "Оффер выставлен") current.jobOffers += row.count;
+    if (row.groupName === "Оффер принят") current.acceptedOffers += row.count;
+    recruiterFunnelByKey.set(key, current);
+  });
 
   const recruiterFunnelRows = Array.from(recruiterFunnelByKey.values())
     .filter(
@@ -2443,34 +2430,35 @@ function CurrentMvp({
                     ? "Каждый этап считается от общего числа новых кандидатов"
                     : funnelScope === "stages"
                       ? "Переход считается между соседними управленческими группами. У разных вакансий маршруты могут отличаться"
-                      : selectedRecruiter === DEFAULT_RECRUITER
-                        ? "Группы рассчитаны напрямую по строкам рекрутеров из отчета Huntflow"
-                        : `Данные Huntflow только по рекрутеру ${selectedRecruiter}`}
+                      : "Разбивка того же текущего среза по рекрутерам"}
                 </span>
               </div>
 
               <div className="funnel-toolbar-controls">
-                {funnelScope === "stages" && (
-                  <div className="segmented-with-info">
-                    <div className="segmented-control compact" aria-label="Логика расчета воронки по этапам">
-                      <button
-                        type="button"
-                        className={funnelStageMode === "fromNew" ? "active" : ""}
-                        onClick={() => setFunnelStageMode("fromNew")}
-                      >
-                        От новых
-                      </button>
-                      <button
-                        type="button"
-                        className={funnelStageMode === "step" ? "active" : ""}
-                        onClick={() => setFunnelStageMode("step")}
-                      >
-                        Из этапа в этап
-                      </button>
-                    </div>
-                    <InfoTooltip text={INFO_TEXTS.funnelMode} />
+                <div
+                  className={`segmented-with-info funnel-mode-control ${funnelScope === "stages" ? "" : "is-placeholder"}`}
+                  aria-hidden={funnelScope !== "stages"}
+                >
+                  <div className="segmented-control compact" aria-label="Логика расчета воронки по этапам">
+                    <button
+                      type="button"
+                      className={funnelStageMode === "fromNew" ? "active" : ""}
+                      onClick={() => setFunnelStageMode("fromNew")}
+                      tabIndex={funnelScope === "stages" ? 0 : -1}
+                    >
+                      От новых
+                    </button>
+                    <button
+                      type="button"
+                      className={funnelStageMode === "step" ? "active" : ""}
+                      onClick={() => setFunnelStageMode("step")}
+                      tabIndex={funnelScope === "stages" ? 0 : -1}
+                    >
+                      Из этапа в этап
+                    </button>
                   </div>
-                )}
+                  <InfoTooltip text={INFO_TEXTS.funnelMode} />
+                </div>
 
                 <div className="segmented-control compact" aria-label="Вид отображения воронки">
                 <button
