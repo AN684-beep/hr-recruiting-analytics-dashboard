@@ -1433,10 +1433,21 @@ p {
 
 .donut-chart small {
   margin-top: 5px;
+  max-width: 84px;
   color: #66758a;
   font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
+  text-align: center;
+}
+
+.funnel-card .donut-panel {
+  min-height: 340px;
+}
+
+.recruiter-donut-panel .donut-chart small {
+  max-width: 72px;
+  font-size: 10px;
 }
 
 .donut-legend {
@@ -2088,6 +2099,10 @@ tbody tr.selected-row td {
   .donut-chart {
     width: min(230px, 100%);
     justify-self: center;
+  }
+
+  .funnel-card .donut-panel {
+    min-height: auto;
   }
 
   .secondary-button {
