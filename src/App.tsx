@@ -1553,11 +1553,27 @@ function CurrentMvp({
   const riskyVacancies = filteredVacancies.filter((vacancy) => vacancy.isRisk);
   const safeRiskIndex = riskyVacancies.length === 0 ? 0 : Math.min(riskIndex, riskyVacancies.length - 1);
   const currentRisk = riskyVacancies[safeRiskIndex];
-  const filteredFunnelGroupRows = funnelGroupsByVacancy.filter(
-    (row) =>
+  const selectedRecruiterKeys = new Set<string>([normalizeRecruiterKey(selectedRecruiter)]);
+  vacancies.forEach((vacancy) => {
+    if (
+      normalizeRecruiterKey(vacancy.recruiter) === normalizeRecruiterKey(selectedRecruiter) ||
+      normalizeRecruiterKey(vacancy.recruiter_canonical) === normalizeRecruiterKey(selectedRecruiter)
+    ) {
+      selectedRecruiterKeys.add(normalizeRecruiterKey(vacancy.recruiter));
+      selectedRecruiterKeys.add(normalizeRecruiterKey(vacancy.recruiter_canonical));
+    }
+  });
+  const filteredFunnelGroupRows = funnelGroupsByVacancy.filter((row) => {
+    const vacancyMatch =
       filteredVacancySourceIds.has(row.vacancyId) ||
-      filteredVacancyTitles.has(row.vacancyTitle)
-  );
+      filteredVacancyTitles.has(row.vacancyTitle);
+    const recruiterMatch =
+      selectedRecruiter === DEFAULT_RECRUITER ||
+      selectedRecruiterKeys.has(normalizeRecruiterKey(row.recruiter)) ||
+      selectedRecruiterKeys.has(normalizeRecruiterKey(row.recruiterCanonical));
+
+    return vacancyMatch && recruiterMatch;
+  });
   const hasManagementFunnelData = funnelGroupsByVacancy.length > 0;
   const hasRecruiterManagementFunnelData = funnelGroupsByVacancy.length > 0;
   const hasFilteredManagementFunnelData = filteredFunnelGroupRows.length > 0;
@@ -1588,16 +1604,6 @@ function CurrentMvp({
     funnelStageCounts.find((item) => item.stage === stage)?.count || 0;
   const movementPeriodFrom = parseDateInput(periodFrom);
   const movementPeriodTo = parseDateInput(periodTo);
-  const selectedRecruiterKeys = new Set<string>([normalizeRecruiterKey(selectedRecruiter)]);
-  vacancies.forEach((vacancy) => {
-    if (
-      normalizeRecruiterKey(vacancy.recruiter) === normalizeRecruiterKey(selectedRecruiter) ||
-      normalizeRecruiterKey(vacancy.recruiter_canonical) === normalizeRecruiterKey(selectedRecruiter)
-    ) {
-      selectedRecruiterKeys.add(normalizeRecruiterKey(vacancy.recruiter));
-      selectedRecruiterKeys.add(normalizeRecruiterKey(vacancy.recruiter_canonical));
-    }
-  });
   const filteredMovementEvents = movementEvents.filter((event) => {
     const periodMatch =
       (!movementPeriodFrom || event.eventDate >= movementPeriodFrom) &&
