@@ -209,6 +209,9 @@ type MovementEvent = {
   stageToKey: string;
   recruiter: string;
   recruiterCanonical: string;
+  recruiterForAnalytics: string;
+  recruiterForAnalyticsCanonical: string;
+  hasAnalyticsRecruiterFields: boolean;
   hfVacancyId: string;
   hfVacancyName: string;
   totalVacancyId: string;
@@ -840,23 +843,43 @@ const buildFunnelGroupsByRecruiter = (rows: ExcelRow[]): FunnelGroupByRecruiterI
 
 const buildMovementEvents = (rows: ExcelRow[]): MovementEvent[] =>
   rows
-    .map((row) => ({
-      eventDate: dateTimestamp(row.event_date),
-      stageToKey: normalizeText(row.stage_to_key).toLowerCase(),
-      recruiter: pickRecruiterDisplayName(
-        normalizeText(row.recruiter_display_name),
-        normalizeText(row.recruiter_raw),
-        normalizeText(row.recruiter_canonical)
-      ),
-      recruiterCanonical: normalizeText(row.recruiter_canonical),
-      hfVacancyId: normalizeText(row.hf_vacancy_id),
-      hfVacancyName: normalizeText(row.hf_vacancy_name),
-      totalVacancyId: normalizeText(row.total_vacancy_id),
-      totalVacancyName: normalizeText(row.total_vacancy_name),
-      vacancyMatchStatus: normalizeText(row.vacancy_match_status),
-      department: normalizeUnknown(row.department),
-      team: normalizeUnknown(row.team)
-    }))
+    .map((row) => {
+      const hasAnalyticsRecruiterFields =
+        "recruiter_for_analytics" in row ||
+        "recruiter_for_analytics_canonical" in row ||
+        "recruiter_analytics" in row ||
+        "recruiter_analytics_canonical" in row;
+      const recruiterForAnalyticsCanonical =
+        normalizeText(row.recruiter_for_analytics_canonical) ||
+        normalizeText(row.recruiter_analytics_canonical) ||
+        normalizeText(row.recruiter_for_analytics);
+      const recruiterForAnalytics = pickRecruiterDisplayName(
+        normalizeText(row.recruiter_for_analytics),
+        normalizeText(row.recruiter_analytics),
+        recruiterForAnalyticsCanonical
+      );
+
+      return {
+        eventDate: dateTimestamp(row.event_date),
+        stageToKey: normalizeText(row.stage_to_key).toLowerCase(),
+        recruiter: pickRecruiterDisplayName(
+          normalizeText(row.recruiter_display_name),
+          normalizeText(row.recruiter_raw),
+          normalizeText(row.recruiter_canonical)
+        ),
+        recruiterCanonical: normalizeText(row.recruiter_canonical),
+        recruiterForAnalytics,
+        recruiterForAnalyticsCanonical,
+        hasAnalyticsRecruiterFields,
+        hfVacancyId: normalizeText(row.hf_vacancy_id),
+        hfVacancyName: normalizeText(row.hf_vacancy_name),
+        totalVacancyId: normalizeText(row.total_vacancy_id),
+        totalVacancyName: normalizeText(row.total_vacancy_name),
+        vacancyMatchStatus: normalizeText(row.vacancy_match_status),
+        department: normalizeUnknown(row.department),
+        team: normalizeUnknown(row.team)
+      };
+    })
     .filter(
       (event) =>
         event.eventDate > 0 &&
@@ -1608,10 +1631,16 @@ function CurrentMvp({
     const periodMatch =
       (!movementPeriodFrom || event.eventDate >= movementPeriodFrom) &&
       (!movementPeriodTo || event.eventDate <= movementPeriodTo);
+    const analyticsRecruiterKey = normalizeRecruiterKey(
+      event.recruiterForAnalyticsCanonical || event.recruiterForAnalytics
+    );
+    const legacyRecruiterKey = normalizeRecruiterKey(event.recruiterCanonical || event.recruiter);
     const recruiterMatch =
-      selectedRecruiter === DEFAULT_RECRUITER ||
-      selectedRecruiterKeys.has(normalizeRecruiterKey(event.recruiter)) ||
-      selectedRecruiterKeys.has(normalizeRecruiterKey(event.recruiterCanonical));
+      selectedRecruiter === DEFAULT_RECRUITER
+        ? !event.hasAnalyticsRecruiterFields || analyticsRecruiterKey !== ""
+        : event.hasAnalyticsRecruiterFields
+          ? selectedRecruiterKeys.has(analyticsRecruiterKey)
+          : selectedRecruiterKeys.has(legacyRecruiterKey);
     const departmentMatch =
       selectedDepartment === DEFAULT_DEPARTMENT ||
       normalizeTextKey(event.department) === normalizeTextKey(selectedDepartment);
